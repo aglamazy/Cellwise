@@ -7,7 +7,7 @@ export default async function Home() {
   const puzzles = await getPuzzles();
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white p-8">
+    <main className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
       <div className="max-w-lg mx-auto">
         <h1 className="text-3xl font-bold mb-6 text-center">Cellwise</h1>
 

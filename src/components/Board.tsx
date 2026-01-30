@@ -61,10 +61,9 @@ export function Board({
 
   return (
     <div
-      className="grid gap-0 border-2 border-gray-600"
+      className="grid gap-0 border-2 border-gray-600 w-full max-w-md aspect-square"
       style={{
         gridTemplateColumns: `repeat(${puzzle.width}, 1fr)`,
-        width: `${puzzle.width * 64}px`,
       }}
     >
       {cells}

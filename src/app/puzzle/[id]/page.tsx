@@ -16,7 +16,7 @@ export default async function PuzzlePage({ params }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white p-8">
+    <main className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
       <div className="max-w-lg mx-auto">
         <Link
           href="/"
