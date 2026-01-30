@@ -1,4 +1,4 @@
-export function Queen({ className = "" }: { className?: string }) {
+export function Crown({ className = "" }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"

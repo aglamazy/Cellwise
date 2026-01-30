@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Puzzle, Position } from "@/types/game";
 import { Board } from "./Board";
 import {
   validatePlacement,
   isPuzzleSolved,
-  hasQueenAt,
+  hasCrownAt,
+  hasPositionIn,
+  getAutoExcludedPositions,
   ValidationError,
 } from "@/lib/game";
 
@@ -15,44 +17,55 @@ interface GameProps {
 }
 
 export function Game({ puzzle }: GameProps) {
-  const [queens, setQueens] = useState<Position[]>([]);
+  const [crowns, setCrowns] = useState<Position[]>([]);
+  const [excluded, setExcluded] = useState<Position[]>([]);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [solved, setSolved] = useState(false);
+
+  const autoExcluded = useMemo(
+    () => getAutoExcludedPositions(puzzle, crowns),
+    [puzzle, crowns]
+  );
 
   const handleCellClick = useCallback(
     (position: Position) => {
       if (solved) return;
 
-      setQueens((prev) => {
-        let newQueens: Position[];
+      const hasCrown = hasCrownAt(crowns, position);
+      const isExcluded = hasPositionIn(excluded, position);
 
-        if (hasQueenAt(prev, position)) {
-          // Remove queen
-          newQueens = prev.filter(
-            (q) => q.row !== position.row || q.col !== position.col
-          );
-        } else {
-          // Add queen
-          newQueens = [...prev, position];
-        }
-
-        // Validate
-        const newErrors = validatePlacement(puzzle, newQueens);
+      if (hasCrown) {
+        // Crown -> Empty: remove crown
+        const newCrowns = crowns.filter(
+          (c) => c.row !== position.row || c.col !== position.col
+        );
+        setCrowns(newCrowns);
+        const newErrors = validatePlacement(puzzle, newCrowns);
+        setErrors(newErrors);
+      } else if (isExcluded) {
+        // Excluded -> Crown: remove from excluded, add crown
+        setExcluded((prev) =>
+          prev.filter((p) => p.row !== position.row || p.col !== position.col)
+        );
+        const newCrowns = [...crowns, position];
+        setCrowns(newCrowns);
+        const newErrors = validatePlacement(puzzle, newCrowns);
         setErrors(newErrors);
 
-        // Check win
-        if (isPuzzleSolved(puzzle, newQueens)) {
+        if (isPuzzleSolved(puzzle, newCrowns)) {
           setSolved(true);
         }
-
-        return newQueens;
-      });
+      } else {
+        // Empty -> Excluded: add to excluded
+        setExcluded((prev) => [...prev, position]);
+      }
     },
-    [puzzle, solved]
+    [puzzle, crowns, excluded, solved]
   );
 
   const handleReset = () => {
-    setQueens([]);
+    setCrowns([]);
+    setExcluded([]);
     setErrors([]);
     setSolved(false);
   };
@@ -62,21 +75,23 @@ export function Game({ puzzle }: GameProps) {
       <div className="text-center">
         <h1 className="text-2xl font-bold mb-2">{puzzle.name}</h1>
         <p className="text-gray-400">
-          Place {puzzle.size} queens. One per row, column, and color.
+          Place {puzzle.size} crowns. One per row, column, and color.
         </p>
-        <p className="text-gray-400">Queens cannot touch each other.</p>
+        <p className="text-gray-400">Crowns cannot touch each other.</p>
       </div>
 
       <Board
         puzzle={puzzle}
-        queens={queens}
+        crowns={crowns}
+        excluded={excluded}
+        autoExcluded={autoExcluded}
         errors={errors}
         onCellClick={handleCellClick}
       />
 
       <div className="flex gap-4 items-center">
         <span className="text-lg">
-          Queens: {queens.length} / {puzzle.size}
+          Crowns: {crowns.length} / {puzzle.size}
         </span>
         <button
           onClick={handleReset}

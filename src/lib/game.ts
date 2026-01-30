@@ -35,16 +35,16 @@ export interface ValidationError {
 
 export function validatePlacement(
   puzzle: Puzzle,
-  queens: Position[]
+  crowns: Position[]
 ): ValidationError[] {
   const errors: ValidationError[] = [];
 
   // Check row conflicts
   const rowCounts = new Map<number, Position[]>();
-  for (const queen of queens) {
-    const existing = rowCounts.get(queen.row) || [];
-    existing.push(queen);
-    rowCounts.set(queen.row, existing);
+  for (const crown of crowns) {
+    const existing = rowCounts.get(crown.row) || [];
+    existing.push(crown);
+    rowCounts.set(crown.row, existing);
   }
   for (const [, positions] of rowCounts) {
     if (positions.length > 1) {
@@ -54,10 +54,10 @@ export function validatePlacement(
 
   // Check column conflicts
   const colCounts = new Map<number, Position[]>();
-  for (const queen of queens) {
-    const existing = colCounts.get(queen.col) || [];
-    existing.push(queen);
-    colCounts.set(queen.col, existing);
+  for (const crown of crowns) {
+    const existing = colCounts.get(crown.col) || [];
+    existing.push(crown);
+    colCounts.set(crown.col, existing);
   }
   for (const [, positions] of colCounts) {
     if (positions.length > 1) {
@@ -67,10 +67,10 @@ export function validatePlacement(
 
   // Check region conflicts
   const regionCounts = new Map<number, Position[]>();
-  for (const queen of queens) {
-    const regionId = getRegionIdAt(puzzle, queen);
+  for (const crown of crowns) {
+    const regionId = getRegionIdAt(puzzle, crown);
     const existing = regionCounts.get(regionId) || [];
-    existing.push(queen);
+    existing.push(crown);
     regionCounts.set(regionId, existing);
   }
   for (const [, positions] of regionCounts) {
@@ -80,10 +80,10 @@ export function validatePlacement(
   }
 
   // Check adjacency conflicts
-  for (let i = 0; i < queens.length; i++) {
-    for (let j = i + 1; j < queens.length; j++) {
-      if (areAdjacent(queens[i], queens[j])) {
-        errors.push({ type: "adjacent", positions: [queens[i], queens[j]] });
+  for (let i = 0; i < crowns.length; i++) {
+    for (let j = i + 1; j < crowns.length; j++) {
+      if (areAdjacent(crowns[i], crowns[j])) {
+        errors.push({ type: "adjacent", positions: [crowns[i], crowns[j]] });
       }
     }
   }
@@ -105,14 +105,56 @@ export function isPositionInError(
   return false;
 }
 
-export function isPuzzleSolved(puzzle: Puzzle, queens: Position[]): boolean {
-  if (queens.length !== puzzle.size) {
+export function isPuzzleSolved(puzzle: Puzzle, crowns: Position[]): boolean {
+  if (crowns.length !== puzzle.size) {
     return false;
   }
-  const errors = validatePlacement(puzzle, queens);
+  const errors = validatePlacement(puzzle, crowns);
   return errors.length === 0;
 }
 
-export function hasQueenAt(queens: Position[], position: Position): boolean {
-  return queens.some((q) => q.row === position.row && q.col === position.col);
+export function hasCrownAt(crowns: Position[], position: Position): boolean {
+  return crowns.some((c) => c.row === position.row && c.col === position.col);
+}
+
+export function hasPositionIn(positions: Position[], position: Position): boolean {
+  return positions.some((p) => p.row === position.row && p.col === position.col);
+}
+
+export function getAutoExcludedPositions(
+  puzzle: Puzzle,
+  crowns: Position[]
+): Position[] {
+  const excluded: Position[] = [];
+  const seen = new Set<string>();
+
+  for (const crown of crowns) {
+    const crownRegionId = getRegionIdAt(puzzle, crown);
+
+    // Exclude all cells in same row, column, or region
+    for (let row = 0; row < puzzle.size; row++) {
+      for (let col = 0; col < puzzle.size; col++) {
+        const pos = { row, col };
+        const key = `${row}-${col}`;
+
+        // Skip if already seen or is a crown position
+        if (seen.has(key) || hasCrownAt(crowns, pos)) {
+          continue;
+        }
+
+        const posRegionId = getRegionIdAt(puzzle, pos);
+        const sameRow = row === crown.row;
+        const sameCol = col === crown.col;
+        const sameRegion = posRegionId === crownRegionId;
+        const isAdjacent = areAdjacent(crown, pos);
+
+        if (sameRow || sameCol || sameRegion || isAdjacent) {
+          excluded.push(pos);
+          seen.add(key);
+        }
+      }
+    }
+  }
+
+  return excluded;
 }
