@@ -122,6 +122,37 @@ export function hasPositionIn(positions: Position[], position: Position): boolea
   return positions.some((p) => p.row === position.row && p.col === position.col);
 }
 
+/**
+ * Calculate the number of puzzle solutions based on grid size and color count
+ * Formula: size / colorCount (cells per region on average)
+ * @param size - Total number of cells (width * height)
+ * @param colorCount - Number of colors/regions
+ * @returns The average cells per region
+ */
+export function calculatePuzzleNumber(size: number, colorCount: number): number {
+  if (colorCount === 0) return 0;
+  return size / colorCount;
+}
+
+/**
+ * Calculate puzzle metrics from a puzzle object
+ * @param puzzle - The puzzle to analyze
+ * @returns Object with size, colorCount, and cellsPerRegion
+ */
+export function getPuzzleMetrics(puzzle: Puzzle): {
+  size: number;
+  colorCount: number;
+  cellsPerRegion: number;
+} {
+  const size = puzzle.width * puzzle.height;
+  const colorCount = puzzle.regions.length;
+  return {
+    size,
+    colorCount,
+    cellsPerRegion: calculatePuzzleNumber(size, colorCount),
+  };
+}
+
 export function getAutoExcludedPositions(
   puzzle: Puzzle,
   crowns: Position[]
