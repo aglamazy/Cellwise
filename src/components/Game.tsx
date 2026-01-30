@@ -75,7 +75,7 @@ export function Game({ puzzle }: GameProps) {
       <div className="text-center">
         <h1 className="text-2xl font-bold mb-2">{puzzle.name}</h1>
         <p className="text-gray-400">
-          Place {puzzle.size} crowns. One per row, column, and color.
+          Place {puzzle.regions.length} crowns. One per row, column, and color.
         </p>
         <p className="text-gray-400">Crowns cannot touch each other.</p>
       </div>
@@ -91,7 +91,7 @@ export function Game({ puzzle }: GameProps) {
 
       <div className="flex gap-4 items-center">
         <span className="text-lg">
-          Crowns: {crowns.length} / {puzzle.size}
+          Crowns: {crowns.length} / {puzzle.regions.length}
         </span>
         <button
           onClick={handleReset}

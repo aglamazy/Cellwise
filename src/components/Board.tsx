@@ -30,8 +30,8 @@ export function Board({
 }: BoardProps) {
   const cells: React.ReactNode[] = [];
 
-  for (let row = 0; row < puzzle.size; row++) {
-    for (let col = 0; col < puzzle.size; col++) {
+  for (let row = 0; row < puzzle.height; row++) {
+    for (let col = 0; col < puzzle.width; col++) {
       const position = { row, col };
       const color = getRegionColorAt(puzzle, position);
       const hasCrown = hasCrownAt(crowns, position);
@@ -61,9 +61,10 @@ export function Board({
 
   return (
     <div
-      className="grid gap-0 border-2 border-gray-600 w-80"
+      className="grid gap-0 border-2 border-gray-600"
       style={{
-        gridTemplateColumns: `repeat(${puzzle.size}, 1fr)`,
+        gridTemplateColumns: `repeat(${puzzle.width}, 1fr)`,
+        width: `${puzzle.width * 64}px`,
       }}
     >
       {cells}

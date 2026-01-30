@@ -106,7 +106,8 @@ export function isPositionInError(
 }
 
 export function isPuzzleSolved(puzzle: Puzzle, crowns: Position[]): boolean {
-  if (crowns.length !== puzzle.size) {
+  // Need one crown per region
+  if (crowns.length !== puzzle.regions.length) {
     return false;
   }
   const errors = validatePlacement(puzzle, crowns);
@@ -132,8 +133,8 @@ export function getAutoExcludedPositions(
     const crownRegionId = getRegionIdAt(puzzle, crown);
 
     // Exclude all cells in same row, column, or region
-    for (let row = 0; row < puzzle.size; row++) {
-      for (let col = 0; col < puzzle.size; col++) {
+    for (let row = 0; row < puzzle.height; row++) {
+      for (let col = 0; col < puzzle.width; col++) {
         const pos = { row, col };
         const key = `${row}-${col}`;
 

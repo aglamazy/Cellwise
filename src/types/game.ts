@@ -12,7 +12,8 @@ export interface Region {
 export interface Puzzle {
   id: string;
   name: string;
-  size: number;
+  width: number;
+  height: number;
   regions: Region[];
   solution: Position[];
 }
