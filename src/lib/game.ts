@@ -122,6 +122,66 @@ export function hasPositionIn(positions: Position[], position: Position): boolea
   return positions.some((p) => p.row === position.row && p.col === position.col);
 }
 
+/**
+ * Calculate the number of valid solutions for a square puzzle
+ * Uses backtracking to count all valid crown placements
+ * @param puzzle - The puzzle (must be square, size 5-10)
+ * @returns The number of valid solutions
+ */
+export function calculatePuzzleNumber(puzzle: Puzzle): number {
+  const size = puzzle.width;
+
+  // Validate square grid and size range
+  if (puzzle.width !== puzzle.height) return 0;
+  if (size < 5 || size > 10) return 0;
+
+  let solutionCount = 0;
+  const crowns: Position[] = [];
+  const usedCols = new Set<number>();
+  const usedRegions = new Set<number>();
+
+  function isValidPlacement(pos: Position): boolean {
+    // Check adjacency with existing crowns
+    for (const crown of crowns) {
+      if (areAdjacent(crown, pos)) return false;
+    }
+    return true;
+  }
+
+  function backtrack(row: number): void {
+    if (row === size) {
+      // All rows filled = valid solution
+      solutionCount++;
+      return;
+    }
+
+    for (let col = 0; col < size; col++) {
+      if (usedCols.has(col)) continue;
+
+      const pos: Position = { row, col };
+      const regionId = getRegionIdAt(puzzle, pos);
+
+      if (usedRegions.has(regionId)) continue;
+      if (!isValidPlacement(pos)) continue;
+
+      // Place crown
+      crowns.push(pos);
+      usedCols.add(col);
+      usedRegions.add(regionId);
+
+      backtrack(row + 1);
+
+      // Remove crown
+      crowns.pop();
+      usedCols.delete(col);
+      usedRegions.delete(regionId);
+    }
+  }
+
+  backtrack(0);
+  return solutionCount;
+}
+
 export function getAutoExcludedPositions(
   puzzle: Puzzle,
   crowns: Position[]
