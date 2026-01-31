@@ -496,7 +496,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
         </button>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || validatePuzzle() !== null}
           className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded transition-colors"
         >
           {saving ? "Saving..." : "Save Puzzle"}

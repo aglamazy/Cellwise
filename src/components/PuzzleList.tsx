@@ -56,7 +56,7 @@ export function PuzzleList({ initialPuzzles }: PuzzleListProps) {
             href={`/puzzle/${puzzle.id}`}
             className="flex-1 block p-4 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
           >
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
               <span className="font-medium">{puzzle.name}</span>
               <span className="text-gray-400 text-sm">
                 {puzzle.width}x{puzzle.height} &middot; {puzzle.regions.length} crowns
