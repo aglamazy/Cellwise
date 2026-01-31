@@ -223,6 +223,14 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   const validatePuzzle = (): string | null => {
     const regions = getRegions();
 
+    // Check crown count matches grid dimensions (need one crown per row and column)
+    if (solution.length !== height) {
+      return `Need ${height} crowns (one per row), have ${solution.length}`;
+    }
+    if (solution.length !== width) {
+      return `Need ${width} crowns (one per column), have ${solution.length}`;
+    }
+
     // Check all cells are colored
     for (let row = 0; row < height; row++) {
       for (let col = 0; col < width; col++) {

@@ -59,3 +59,27 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch puzzles" }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing puzzle id" }, { status: 400 });
+    }
+
+    const result = await sql`
+      DELETE FROM puzzles WHERE id = ${id} RETURNING id
+    `;
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, id });
+  } catch (error) {
+    console.error("Error deleting puzzle:", error);
+    return NextResponse.json({ error: "Failed to delete puzzle" }, { status: 500 });
+  }
+}
