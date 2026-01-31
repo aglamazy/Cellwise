@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Position, Region, Puzzle } from "@/types/game";
 import { Crown } from "./Crown";
+import { calculatePuzzleNumber } from "@/lib/game";
 
 const COLORS = [
   "#ef4444", // red
@@ -64,15 +65,15 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   const handleSizeInputChange = (value: string) => {
     setSizeInput(value);
     const num = Number(value);
-    // Only apply valid sizes (2-10)
-    if (!isNaN(num) && num >= 2 && num <= 10) {
+    // Only apply valid sizes (5-10)
+    if (!isNaN(num) && num >= 5 && num <= 10) {
       handleResize(num);
     }
   };
 
   const isSizeInputValid = () => {
     const num = Number(sizeInput);
-    return !isNaN(num) && num >= 2 && num <= 10;
+    return !isNaN(num) && num >= 5 && num <= 10;
   };
 
   const incrementSize = () => {
@@ -82,7 +83,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   };
 
   const decrementSize = () => {
-    if (size > 2) {
+    if (size > 5) {
       handleResize(size - 1);
     }
   };
@@ -347,6 +348,38 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   cellColors.forEach((row) => row.forEach((c) => c !== null && usedColors.add(c)));
   const regionCount = usedColors.size;
 
+  // Check if all cells are colored (board is complete)
+  const isBoardComplete = useMemo(() => {
+    for (let row = 0; row < size; row++) {
+      for (let col = 0; col < size; col++) {
+        if (cellColors[row]?.[col] === null || cellColors[row]?.[col] === undefined) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }, [cellColors, size]);
+
+  // Calculate solution count when board is complete
+  const solutionCount = useMemo(() => {
+    if (!isBoardComplete) return null;
+
+    // Build a puzzle object from current state to calculate solutions
+    const regions = getRegions();
+    if (regions.length === 0) return null;
+
+    const tempPuzzle: Puzzle = {
+      id: "temp",
+      name: "temp",
+      width: size,
+      height: size,
+      regions,
+      solution: [], // Not needed for calculation
+    };
+
+    return calculatePuzzleNumber(tempPuzzle);
+  }, [isBoardComplete, cellColors, size]);
+
   // Find conflicting crowns for real-time feedback
   const getConflicts = (): Set<string> => {
     const conflicts = new Set<string>();
@@ -387,7 +420,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
           <span className="text-gray-400">Size:</span>
           <button
             onClick={decrementSize}
-            disabled={size <= 2}
+            disabled={size <= 5}
             className="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 rounded transition-colors font-bold"
           >
             -
@@ -409,7 +442,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
             +
           </button>
           {!isSizeInputValid() && (
-            <span className="text-red-400 text-xs">(2-10)</span>
+            <span className="text-red-400 text-xs">(5-10)</span>
           )}
         </div>
       </div>
@@ -507,6 +540,15 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
           </span>
         )}
       </div>
+
+      {isBoardComplete && solutionCount !== null && (
+        <div className={`text-sm font-medium ${solutionCount === 1 ? "text-green-400" : solutionCount === 0 ? "text-red-400" : "text-yellow-400"}`}>
+          Solutions: {solutionCount}
+          {solutionCount === 0 && " (no valid solution exists)"}
+          {solutionCount === 1 && " (unique solution)"}
+          {solutionCount > 1 && " (multiple solutions)"}
+        </div>
+      )}
 
       {conflicts.size > 0 && (
         <p className="text-red-400 text-sm">
