@@ -25,9 +25,8 @@ interface PuzzleEditorProps {
 }
 
 export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
-  const [name, setName] = useState("New Puzzle");
-  const [width, setWidth] = useState(5);
-  const [height, setHeight] = useState(5);
+  const [name, setName] = useState("");
+  const [size, setSize] = useState(5);
   const [mode, setMode] = useState<EditorMode>("solution");
   const [selectedColor, setSelectedColor] = useState(0);
   const [cellColors, setCellColors] = useState<(number | null)[][]>(
@@ -37,12 +36,12 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const handleResize = (newWidth: number, newHeight: number) => {
+  const handleResize = (newSize: number) => {
     // Adjust cellColors grid
-    const newCellColors: (number | null)[][] = Array(newHeight)
+    const newCellColors: (number | null)[][] = Array(newSize)
       .fill(null)
       .map((_, row) =>
-        Array(newWidth)
+        Array(newSize)
           .fill(null)
           .map((_, col) =>
             row < cellColors.length && col < (cellColors[row]?.length || 0)
@@ -54,11 +53,10 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
 
     // Remove solution crowns that are out of bounds
     setSolution((prev) =>
-      prev.filter((pos) => pos.row < newHeight && pos.col < newWidth)
+      prev.filter((pos) => pos.row < newSize && pos.col < newSize)
     );
 
-    setWidth(newWidth);
-    setHeight(newHeight);
+    setSize(newSize);
   };
 
   const handleCellClick = useCallback(
@@ -85,8 +83,8 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   const getRegions = (): Region[] => {
     const colorToRegion = new Map<number, Position[]>();
 
-    for (let row = 0; row < height; row++) {
-      for (let col = 0; col < width; col++) {
+    for (let row = 0; row < size; row++) {
+      for (let col = 0; col < size; col++) {
         const colorIdx = cellColors[row]?.[col];
         if (colorIdx !== null && colorIdx !== undefined) {
           const cells = colorToRegion.get(colorIdx) || [];
@@ -123,10 +121,10 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
     // Find rows and columns that need crowns
     const emptyRows: number[] = [];
     const emptyCols: number[] = [];
-    for (let r = 0; r < height; r++) {
+    for (let r = 0; r < size; r++) {
       if (!usedRows.has(r)) emptyRows.push(r);
     }
-    for (let c = 0; c < width; c++) {
+    for (let c = 0; c < size; c++) {
       if (!usedCols.has(c)) emptyCols.push(c);
     }
 
@@ -200,7 +198,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
           for (const [dr, dc] of dirs) {
             const nr = pos.row + dr;
             const nc = pos.col + dc;
-            if (nr >= 0 && nr < height && nc >= 0 && nc < width) {
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
               if (newCellColors[nr][nc] === null) {
                 newCellColors[nr][nc] = colorIdx;
                 nextQueue.push({ row: nr, col: nc });
@@ -224,8 +222,8 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
     const regions = getRegions();
 
     // Check all cells are colored
-    for (let row = 0; row < height; row++) {
-      for (let col = 0; col < width; col++) {
+    for (let row = 0; row < size; row++) {
+      for (let col = 0; col < size; col++) {
         if (cellColors[row]?.[col] === null || cellColors[row]?.[col] === undefined) {
           return "All cells must be colored";
         }
@@ -277,6 +275,11 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   };
 
   const handleSave = async () => {
+    if (!name.trim()) {
+      setError("Puzzle name is required");
+      return;
+    }
+
     const validationError = validatePuzzle();
     if (validationError) {
       setError(validationError);
@@ -290,8 +293,8 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
       const puzzle: Puzzle = {
         id: `puzzle-${Date.now()}`,
         name: name.trim(),
-        width,
-        height,
+        width: size,
+        height: size,
         regions: getRegions(),
         solution,
       };
@@ -345,19 +348,11 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
           placeholder="Puzzle Name"
         />
         <div className="flex items-center gap-2 text-sm">
+          <span className="text-gray-400">Size:</span>
           <input
             type="number"
-            value={width}
-            onChange={(e) => handleResize(Math.max(2, Math.min(10, Number(e.target.value))), height)}
-            className="w-12 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-center"
-            min={2}
-            max={10}
-          />
-          <span className="text-gray-400">x</span>
-          <input
-            type="number"
-            value={height}
-            onChange={(e) => handleResize(width, Math.max(2, Math.min(10, Number(e.target.value))))}
+            value={size}
+            onChange={(e) => handleResize(Math.max(2, Math.min(10, Number(e.target.value))))}
             className="w-12 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-center"
             min={2}
             max={10}
@@ -417,12 +412,12 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
       <div
         className="grid gap-0 border-2 border-gray-600"
         style={{
-          gridTemplateColumns: `repeat(${width}, 1fr)`,
-          width: `${width * 48}px`,
+          gridTemplateColumns: `repeat(${size}, 1fr)`,
+          width: `${size * 48}px`,
         }}
       >
-        {Array.from({ length: height }).map((_, row) =>
-          Array.from({ length: width }).map((_, col) => {
+        {Array.from({ length: size }).map((_, row) =>
+          Array.from({ length: size }).map((_, col) => {
             const colorIdx = cellColors[row]?.[col];
             const bgColor = colorIdx !== null && colorIdx !== undefined ? COLORS[colorIdx] : "#374151";
             const hasCrown = solution.some((s) => s.row === row && s.col === col);
@@ -476,7 +471,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
         </button>
         <button
           onClick={() => {
-            setCellColors(Array(height).fill(null).map(() => Array(width).fill(null)));
+            setCellColors(Array(size).fill(null).map(() => Array(size).fill(null)));
             setSolution([]);
             setError("");
           }}

@@ -20,6 +20,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Solution must have one crown per region" }, { status: 400 });
     }
 
+    // Check for unique puzzle name
+    const existingPuzzle = await sql`
+      SELECT id FROM puzzles WHERE LOWER(name) = LOWER(${puzzle.name}) AND id != ${puzzle.id}
+    `;
+    if (existingPuzzle.length > 0) {
+      return NextResponse.json({ error: "A puzzle with this name already exists" }, { status: 400 });
+    }
+
     await sql`
       INSERT INTO puzzles (id, name, width, height, regions, solution)
       VALUES (
