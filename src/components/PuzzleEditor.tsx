@@ -27,6 +27,7 @@ interface PuzzleEditorProps {
 export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   const [name, setName] = useState("");
   const [size, setSize] = useState(5);
+  const [sizeInput, setSizeInput] = useState("5");
   const [mode, setMode] = useState<EditorMode>("solution");
   const [selectedColor, setSelectedColor] = useState(0);
   const [cellColors, setCellColors] = useState<(number | null)[][]>(
@@ -57,6 +58,33 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
     );
 
     setSize(newSize);
+    setSizeInput(String(newSize));
+  };
+
+  const handleSizeInputChange = (value: string) => {
+    setSizeInput(value);
+    const num = Number(value);
+    // Only apply valid sizes (2-10)
+    if (!isNaN(num) && num >= 2 && num <= 10) {
+      handleResize(num);
+    }
+  };
+
+  const isSizeInputValid = () => {
+    const num = Number(sizeInput);
+    return !isNaN(num) && num >= 2 && num <= 10;
+  };
+
+  const incrementSize = () => {
+    if (size < 10) {
+      handleResize(size + 1);
+    }
+  };
+
+  const decrementSize = () => {
+    if (size > 2) {
+      handleResize(size - 1);
+    }
   };
 
   const handleCellClick = useCallback(
@@ -347,7 +375,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
 
   return (
     <div className="flex flex-col items-center gap-4 p-4">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-center gap-2">
         <input
           type="text"
           value={name}
@@ -357,14 +385,32 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
         />
         <div className="flex items-center gap-2 text-sm">
           <span className="text-gray-400">Size:</span>
+          <button
+            onClick={decrementSize}
+            disabled={size <= 2}
+            className="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 rounded transition-colors font-bold"
+          >
+            -
+          </button>
           <input
-            type="number"
-            value={size}
-            onChange={(e) => handleResize(Math.max(2, Math.min(10, Number(e.target.value))))}
-            className="w-12 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-center"
-            min={2}
-            max={10}
+            type="text"
+            inputMode="numeric"
+            value={sizeInput}
+            onChange={(e) => handleSizeInputChange(e.target.value)}
+            className={`w-12 px-2 py-1 bg-gray-800 border rounded text-white text-center ${
+              isSizeInputValid() ? "border-gray-600" : "border-red-500 text-red-400"
+            }`}
           />
+          <button
+            onClick={incrementSize}
+            disabled={size >= 10}
+            className="w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 rounded transition-colors font-bold"
+          >
+            +
+          </button>
+          {!isSizeInputValid() && (
+            <span className="text-red-400 text-xs">(2-10)</span>
+          )}
         </div>
       </div>
 
