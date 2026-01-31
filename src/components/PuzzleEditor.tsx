@@ -158,7 +158,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
     const crownToColor = new Map<string, number>();
 
     // First, respect existing colors for existing crowns
-    newSolution.forEach((crown, idx) => {
+    newSolution.forEach((crown) => {
       const existingColor = newCellColors[crown.row][crown.col];
       if (existingColor !== null) {
         crownToColor.set(`${crown.row}-${crown.col}`, existingColor);
@@ -222,11 +222,11 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
     const regions = getRegions();
 
     // Check crown count matches grid dimensions (need one crown per row and column)
-    if (solution.length !== height) {
-      return `Need ${height} crowns (one per row), have ${solution.length}`;
+    if (solution.length !== size) {
+      return `Need ${size} crowns (one per row), have ${solution.length}`;
     }
-    if (solution.length !== width) {
-      return `Need ${width} crowns (one per column), have ${solution.length}`;
+    if (solution.length !== size) {
+      return `Need ${size} crowns (one per column), have ${solution.length}`;
     }
 
     // Check all cells are colored
