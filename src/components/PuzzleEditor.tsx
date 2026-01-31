@@ -516,6 +516,11 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
+      {/* Show validation hint when save button would be disabled */}
+      {!error && conflicts.size === 0 && validatePuzzle() && (
+        <p className="text-yellow-400 text-sm">{validatePuzzle()}</p>
+      )}
+
       <div className="flex gap-2 flex-wrap justify-center">
         <button
           onClick={onCancel}
