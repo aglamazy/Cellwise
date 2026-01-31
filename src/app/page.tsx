@@ -1,5 +1,6 @@
 import { getPuzzles } from "@/lib/puzzles";
 import Link from "next/link";
+import { PuzzleList } from "@/components/PuzzleList";
 
 export const dynamic = "force-dynamic";
 
@@ -11,26 +12,7 @@ export default async function Home() {
       <div className="max-w-lg mx-auto">
         <h1 className="text-3xl font-bold mb-6 text-center">Cellwise</h1>
 
-        <div className="flex flex-col gap-3 mb-6">
-          {puzzles.map((puzzle) => (
-            <Link
-              key={puzzle.id}
-              href={`/puzzle/${puzzle.id}`}
-              className="block p-4 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <div className="flex justify-between items-center">
-                <span className="font-medium">{puzzle.name}</span>
-                <span className="text-gray-400 text-sm">
-                  {puzzle.width}x{puzzle.height} &middot; {puzzle.regions.length} crowns
-                </span>
-              </div>
-            </Link>
-          ))}
-
-          {puzzles.length === 0 && (
-            <p className="text-gray-400 text-center py-8">No puzzles yet</p>
-          )}
-        </div>
+        <PuzzleList initialPuzzles={puzzles} />
 
         <Link
           href="/create"
