@@ -221,12 +221,9 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   const validatePuzzle = (): string | null => {
     const regions = getRegions();
 
-    // Check crown count matches grid dimensions (need one crown per row and column)
+    // Check crown count matches puzzle size (NxN grid needs N crowns)
     if (solution.length !== size) {
-      return `Need ${size} crowns (one per row), have ${solution.length}`;
-    }
-    if (solution.length !== size) {
-      return `Need ${size} crowns (one per column), have ${solution.length}`;
+      return `Need exactly ${size} crowns for a ${size}x${size} puzzle, have ${solution.length}`;
     }
 
     // Check all cells are colored
@@ -238,43 +235,43 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
       }
     }
 
-    // Check solution count
-    if (solution.length !== regions.length) {
-      return `Need ${regions.length} crowns (one per region), have ${solution.length}`;
+    // Check number of regions matches puzzle size
+    if (regions.length !== size) {
+      return `Need exactly ${size} regions for a ${size}x${size} puzzle, have ${regions.length}`;
     }
 
     // Check one crown per row
     const rows = new Set(solution.map((s) => s.row));
     if (rows.size !== solution.length) {
-      return "Each row can only have one crown";
+      return "Each row must have exactly one crown";
     }
 
     // Check one crown per column
     const cols = new Set(solution.map((s) => s.col));
     if (cols.size !== solution.length) {
-      return "Each column can only have one crown";
+      return "Each column must have exactly one crown";
     }
 
-    // Check one crown per region
+    // Check one crown per region (color)
     const crownRegions = new Set<number>();
     for (const pos of solution) {
       const colorIdx = cellColors[pos.row]?.[pos.col];
       if (colorIdx === null || colorIdx === undefined) {
-        return "Crown must be on a colored cell";
+        return "Crown must be placed on a colored cell";
       }
       if (crownRegions.has(colorIdx)) {
-        return "Each region can only have one crown";
+        return "Each region (color) must have exactly one crown";
       }
       crownRegions.add(colorIdx);
     }
 
-    // Check no adjacent crowns
+    // Check no adjacent crowns (including diagonals)
     for (let i = 0; i < solution.length; i++) {
       for (let j = i + 1; j < solution.length; j++) {
         const rowDiff = Math.abs(solution[i].row - solution[j].row);
         const colDiff = Math.abs(solution[i].col - solution[j].col);
         if (rowDiff <= 1 && colDiff <= 1) {
-          return "Crowns cannot be adjacent to each other";
+          return "Crowns cannot be adjacent to each other (including diagonals)";
         }
       }
     }
