@@ -142,7 +142,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
       return;
     }
 
-    // Place crowns in empty rows/columns (preserve existing)
+    // Step 1: Place crowns in empty rows/columns (preserve existing)
     const newSolution = [...solution];
     const usedRows = new Set(newSolution.map((c) => c.row));
     const usedCols = new Set(newSolution.map((c) => c.col));
@@ -180,7 +180,70 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
       }
     }
 
+    // Step 2: Flood fill only uncolored cells (preserve existing colors)
+    const newCellColors = cellColors.map((row) => [...row]);
+
+    // Map crowns to their colors (use existing color if cell is already colored)
+    const crownToColor = new Map<string, number>();
+
+    // First, use existing colors for crowns that are on colored cells
+    newSolution.forEach((crown) => {
+      const existingColor = newCellColors[crown.row][crown.col];
+      if (existingColor !== null) {
+        crownToColor.set(`${crown.row}-${crown.col}`, existingColor);
+      }
+    });
+
+    // Assign new colors only to crowns on uncolored cells
+    let nextColor = 0;
+    const usedColorSet = new Set(crownToColor.values());
+    newSolution.forEach((crown) => {
+      const key = `${crown.row}-${crown.col}`;
+      if (!crownToColor.has(key)) {
+        while (usedColorSet.has(nextColor)) nextColor++;
+        crownToColor.set(key, nextColor);
+        newCellColors[crown.row][crown.col] = nextColor;
+        usedColorSet.add(nextColor);
+        nextColor++;
+      }
+    });
+
+    // BFS flood fill from all crowns simultaneously, only filling uncolored cells
+    const queues: Position[][] = newSolution.map((crown) => [crown]);
+
+    let changed = true;
+    while (changed) {
+      changed = false;
+
+      for (let i = 0; i < newSolution.length; i++) {
+        const crown = newSolution[i];
+        const colorIdx = crownToColor.get(`${crown.row}-${crown.col}`)!;
+        const queue = queues[i];
+        const nextQueue: Position[] = [];
+
+        for (const pos of queue) {
+          // Expand to orthogonal neighbors, only filling uncolored cells
+          const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+          for (const [dr, dc] of dirs) {
+            const nr = pos.row + dr;
+            const nc = pos.col + dc;
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+              if (newCellColors[nr][nc] === null) {
+                newCellColors[nr][nc] = colorIdx;
+                nextQueue.push({ row: nr, col: nc });
+                changed = true;
+              }
+            }
+          }
+        }
+
+        queues[i] = nextQueue;
+      }
+    }
+
     setSolution(newSolution);
+    setCellColors(newCellColors);
+    setMode("paint");
     setError("");
   };
 
