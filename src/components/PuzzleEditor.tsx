@@ -183,10 +183,10 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
     // Step 2: Flood fill only uncolored cells (preserve existing colors)
     const newCellColors = cellColors.map((row) => [...row]);
 
-    // Find which colors are already used and map crowns to colors
+    // Map crowns to their colors (use existing color if cell is already colored)
     const crownToColor = new Map<string, number>();
 
-    // First, respect existing colors for existing crowns
+    // First, use existing colors for crowns that are on colored cells
     newSolution.forEach((crown) => {
       const existingColor = newCellColors[crown.row][crown.col];
       if (existingColor !== null) {
@@ -194,7 +194,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
       }
     });
 
-    // Assign new colors to crowns that don't have one
+    // Assign new colors only to crowns on uncolored cells
     let nextColor = 0;
     const usedColorSet = new Set(crownToColor.values());
     newSolution.forEach((crown) => {
@@ -208,7 +208,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
       }
     });
 
-    // BFS flood fill from all crowns simultaneously, only filling null cells
+    // BFS flood fill from all crowns simultaneously, only filling uncolored cells
     const queues: Position[][] = newSolution.map((crown) => [crown]);
 
     let changed = true;
@@ -222,7 +222,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
         const nextQueue: Position[] = [];
 
         for (const pos of queue) {
-          // Try to expand to orthogonal neighbors (4-connected for cleaner regions)
+          // Expand to orthogonal neighbors, only filling uncolored cells
           const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
           for (const [dr, dc] of dirs) {
             const nr = pos.row + dr;
