@@ -182,6 +182,135 @@ export function calculatePuzzleNumber(puzzle: Puzzle): number {
   return solutionCount;
 }
 
+/**
+ * Find all valid solutions for a square puzzle
+ * Uses backtracking to enumerate all valid crown placements
+ * @param puzzle - The puzzle (must be square, size 5-10)
+ * @param maxSolutions - Maximum number of solutions to find (default 100)
+ * @returns Array of solutions, each solution is an array of crown positions
+ */
+export function findAllSolutions(puzzle: Puzzle, maxSolutions: number = 100): Position[][] {
+  const size = puzzle.width;
+
+  // Validate square grid and size range
+  if (puzzle.width !== puzzle.height) return [];
+  if (size < 5 || size > 10) return [];
+
+  const solutions: Position[][] = [];
+  const crowns: Position[] = [];
+  const usedCols = new Set<number>();
+  const usedRegions = new Set<number>();
+
+  function isValidPlacement(pos: Position): boolean {
+    // Check adjacency with existing crowns
+    for (const crown of crowns) {
+      if (areAdjacent(crown, pos)) return false;
+    }
+    return true;
+  }
+
+  function backtrack(row: number): void {
+    if (solutions.length >= maxSolutions) return;
+
+    if (row === size) {
+      // All rows filled = valid solution
+      solutions.push([...crowns]);
+      return;
+    }
+
+    for (let col = 0; col < size; col++) {
+      if (usedCols.has(col)) continue;
+
+      const pos: Position = { row, col };
+      const regionId = getRegionIdAt(puzzle, pos);
+
+      if (usedRegions.has(regionId)) continue;
+      if (!isValidPlacement(pos)) continue;
+
+      // Place crown
+      crowns.push(pos);
+      usedCols.add(col);
+      usedRegions.add(regionId);
+
+      backtrack(row + 1);
+
+      // Remove crown
+      crowns.pop();
+      usedCols.delete(col);
+      usedRegions.delete(regionId);
+    }
+  }
+
+  backtrack(0);
+  return solutions;
+}
+
+/**
+ * Analyze multiple solutions to find cells that could reduce solution count
+ * Returns cells that have crowns in some solutions but not others (ambiguous cells)
+ * @param solutions - Array of solutions from findAllSolutions
+ * @param size - Grid size
+ * @returns Object with analysis data for puzzle creation hints
+ */
+export interface SolutionAnalysis {
+  // Cells that have crowns in some solutions but not all
+  ambiguousCells: Position[];
+  // For each cell, how many solutions have a crown there
+  crownFrequency: Map<string, number>;
+  // Cells that always have a crown in every solution
+  fixedCrowns: Position[];
+  // Cells that never have a crown in any solution
+  neverCrowns: Position[];
+}
+
+export function analyzeSolutions(solutions: Position[][], size: number): SolutionAnalysis {
+  if (solutions.length === 0) {
+    return {
+      ambiguousCells: [],
+      crownFrequency: new Map(),
+      fixedCrowns: [],
+      neverCrowns: [],
+    };
+  }
+
+  const crownFrequency = new Map<string, number>();
+
+  // Count how often each cell has a crown across all solutions
+  for (const solution of solutions) {
+    for (const crown of solution) {
+      const key = `${crown.row}-${crown.col}`;
+      crownFrequency.set(key, (crownFrequency.get(key) || 0) + 1);
+    }
+  }
+
+  const totalSolutions = solutions.length;
+  const ambiguousCells: Position[] = [];
+  const fixedCrowns: Position[] = [];
+  const neverCrowns: Position[] = [];
+
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
+      const key = `${row}-${col}`;
+      const freq = crownFrequency.get(key) || 0;
+
+      if (freq === 0) {
+        neverCrowns.push({ row, col });
+      } else if (freq === totalSolutions) {
+        fixedCrowns.push({ row, col });
+      } else {
+        ambiguousCells.push({ row, col });
+      }
+    }
+  }
+
+  return {
+    ambiguousCells,
+    crownFrequency,
+    fixedCrowns,
+    neverCrowns,
+  };
+}
+
 export function getAutoExcludedPositions(
   puzzle: Puzzle,
   crowns: Position[]

@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { Position, Region, Puzzle } from "@/types/game";
 import { Crown } from "./Crown";
-import { calculatePuzzleNumber } from "@/lib/game";
+import { calculatePuzzleNumber, findAllSolutions, analyzeSolutions, SolutionAnalysis } from "@/lib/game";
 
 const COLORS = [
   "#ef4444", // red
@@ -37,6 +37,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
   const [solution, setSolution] = useState<Position[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showHints, setShowHints] = useState(false);
 
   const handleResize = (newSize: number) => {
     // Adjust cellColors grid
@@ -380,6 +381,32 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
     return calculatePuzzleNumber(tempPuzzle);
   }, [isBoardComplete, cellColors, size]);
 
+  // Analyze solutions to find ambiguous cells when there are multiple solutions
+  const solutionAnalysis: SolutionAnalysis | null = useMemo(() => {
+    if (!isBoardComplete || solutionCount === null || solutionCount <= 1) return null;
+
+    const regions = getRegions();
+    if (regions.length === 0) return null;
+
+    const tempPuzzle: Puzzle = {
+      id: "temp",
+      name: "temp",
+      width: size,
+      height: size,
+      regions,
+      solution: [],
+    };
+
+    const allSolutions = findAllSolutions(tempPuzzle, 50);
+    return analyzeSolutions(allSolutions, size);
+  }, [isBoardComplete, solutionCount, cellColors, size]);
+
+  // Create a set of ambiguous cell keys for quick lookup
+  const ambiguousCellKeys = useMemo(() => {
+    if (!solutionAnalysis) return new Set<string>();
+    return new Set(solutionAnalysis.ambiguousCells.map(c => `${c.row}-${c.col}`));
+  }, [solutionAnalysis]);
+
   // Find conflicting crowns for real-time feedback
   const getConflicts = (): Set<string> => {
     const conflicts = new Set<string>();
@@ -509,15 +536,19 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
             const bgColor = colorIdx !== null && colorIdx !== undefined ? COLORS[colorIdx] : "#374151";
             const hasCrown = solution.some((s) => s.row === row && s.col === col);
             const hasConflict = conflicts.has(`${row}-${col}`);
+            const isAmbiguous = showHints && ambiguousCellKeys.has(`${row}-${col}`);
+            const crownFreq = solutionAnalysis?.crownFrequency.get(`${row}-${col}`) || 0;
+            const freqPercent = solutionCount && solutionCount > 1 ? Math.round((crownFreq / solutionCount) * 100) : 0;
 
             return (
               <button
                 key={`${row}-${col}`}
                 onClick={() => handleCellClick(row, col)}
-                className={`aspect-square w-full flex items-center justify-center border transition-all hover:brightness-110 ${
-                  hasConflict ? "border-red-500 border-2" : "border-gray-700/50"
+                className={`aspect-square w-full flex items-center justify-center transition-all hover:brightness-110 ${
+                  hasConflict ? "border-red-500 border-2 border-solid" : isAmbiguous ? "border-yellow-400 border-2 border-dashed" : "border border-gray-700/50"
                 }`}
                 style={{ backgroundColor: bgColor }}
+                title={isAmbiguous ? `Crown in ${freqPercent}% of solutions` : undefined}
               >
                 {hasCrown && (
                   <Crown
@@ -542,11 +573,41 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
       </div>
 
       {isBoardComplete && solutionCount !== null && (
-        <div className={`text-sm font-medium ${solutionCount === 1 ? "text-green-400" : solutionCount === 0 ? "text-red-400" : "text-yellow-400"}`}>
-          Solutions: {solutionCount}
-          {solutionCount === 0 && " (no valid solution exists)"}
-          {solutionCount === 1 && " (unique solution)"}
-          {solutionCount > 1 && " (multiple solutions)"}
+        <div className="flex flex-col items-center gap-2">
+          <div className={`text-sm font-medium ${solutionCount === 1 ? "text-green-400" : solutionCount === 0 ? "text-red-400" : "text-yellow-400"}`}>
+            Solutions: {solutionCount}
+            {solutionCount === 0 && " (no valid solution exists)"}
+            {solutionCount === 1 && " (unique solution)"}
+            {solutionCount > 1 && " (multiple solutions)"}
+          </div>
+
+          {solutionCount > 1 && solutionAnalysis && (
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={() => setShowHints(!showHints)}
+                className={`px-3 py-1 text-sm rounded transition-colors ${
+                  showHints ? "bg-yellow-600 hover:bg-yellow-500" : "bg-gray-700 hover:bg-gray-600"
+                }`}
+              >
+                {showHints ? "Hide Hints" : "Show Hints"}
+              </button>
+
+              {showHints && (
+                <div className="text-xs text-gray-300 max-w-sm text-center bg-gray-800 p-3 rounded">
+                  <p className="font-medium text-yellow-400 mb-2">Cells highlighted with dashed borders are ambiguous</p>
+                  <p className="mb-2">These cells have crowns in some solutions but not others. To reduce solutions:</p>
+                  <ul className="text-left list-disc list-inside space-y-1">
+                    <li><span className="text-cyan-400">Merge regions:</span> Paint two ambiguous cells the same color to force the same crown placement</li>
+                    <li><span className="text-cyan-400">Split regions:</span> Give ambiguous cells different colors to eliminate some placements</li>
+                  </ul>
+                  <p className="mt-2 text-gray-400">
+                    Fixed crowns: {solutionAnalysis.fixedCrowns.length} |
+                    Ambiguous: {solutionAnalysis.ambiguousCells.length}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
