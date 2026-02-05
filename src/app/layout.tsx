@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "Queens",
+  title: "CellWise",
   description: "A puzzle game",
 };
 
