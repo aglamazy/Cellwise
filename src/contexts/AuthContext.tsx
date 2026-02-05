@@ -1,41 +1,114 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { User, UserRole } from "@/types/user";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
+import { User } from "@/types/user";
 
 interface AuthContextType {
   user: User | null;
   isAdmin: boolean;
-  setRole: (role: UserRole) => void;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<{ error?: string }>;
+  register: (
+    email: string,
+    password: string,
+    name: string
+  ) => Promise<{ error?: string }>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEY = "cellwise_user_role";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const savedRole = localStorage.getItem(STORAGE_KEY) as UserRole | null;
-    setUser({
-      id: "default-user",
-      name: "User",
-      role: savedRole || "user",
-    });
+  const refreshUser = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/me");
+      const data = await response.json();
+      setUser(data.user);
+    } catch {
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const setRole = (role: UserRole) => {
-    localStorage.setItem(STORAGE_KEY, role);
-    setUser((prev) =>
-      prev ? { ...prev, role } : { id: "default-user", name: "User", role }
-    );
+  useEffect(() => {
+    refreshUser();
+  }, [refreshUser]);
+
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<{ error?: string }> => {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { error: data.error || "Login failed" };
+      }
+
+      setUser(data.user);
+      return {};
+    } catch {
+      return { error: "Login failed" };
+    }
+  };
+
+  const register = async (
+    email: string,
+    password: string,
+    name: string
+  ): Promise<{ error?: string }> => {
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { error: data.error || "Registration failed" };
+      }
+
+      setUser(data.user);
+      return {};
+    } catch {
+      return { error: "Registration failed" };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      setUser(null);
+    }
   };
 
   const isAdmin = user?.role === "admin";
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, setRole }}>
+    <AuthContext.Provider
+      value={{ user, isAdmin, isLoading, login, register, logout, refreshUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

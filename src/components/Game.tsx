@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import Link from "next/link";
 import confetti from "canvas-confetti";
 import { Puzzle, Position } from "@/types/game";
 import { Board } from "./Board";
 import { Timer, TimerRef } from "./Timer";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   validatePlacement,
   isPuzzleSolved,
@@ -23,6 +25,18 @@ interface GameState {
   excluded: Position[];
 }
 
+interface LeaderboardEntry {
+  timeSeconds: number;
+  userName: string;
+  userId: string;
+}
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
 export function Game({ puzzle }: GameProps) {
   const [crowns, setCrowns] = useState<Position[]>([]);
   const [excluded, setExcluded] = useState<Position[]>([]);
@@ -31,17 +45,79 @@ export function Game({ puzzle }: GameProps) {
   const [isPaused, setIsPaused] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [history, setHistory] = useState<GameState[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const timerRef = useRef<TimerRef>(null);
+  const { user, isAdmin } = useAuth();
+
+  const canEdit = user && (puzzle.userId === user.id || isAdmin);
 
   const autoExcluded = useMemo(
     () => getAutoExcludedPositions(puzzle, crowns),
     [puzzle, crowns]
   );
 
+  // Fetch leaderboard on mount
+  useEffect(() => {
+    fetch(`/api/results?puzzleId=${puzzle.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setLeaderboard(data);
+        }
+      })
+      .catch(() => {});
+  }, [puzzle.id]);
+
+  const saveResult = useCallback(
+    async (timeSeconds: number) => {
+      if (!user) return;
+
+      try {
+        const response = await fetch("/api/results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ puzzleId: puzzle.id, timeSeconds }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          if (data.improved) {
+            setSaveMessage(
+              `New best time! ${formatTime(data.newTime)} (was ${formatTime(data.previousTime)})`
+            );
+          } else if (data.isNewRecord) {
+            setSaveMessage(`Time saved: ${formatTime(timeSeconds)}`);
+          } else {
+            setSaveMessage(`Your best: ${formatTime(data.bestTime)}`);
+          }
+
+          // Refresh leaderboard
+          const leaderboardRes = await fetch(
+            `/api/results?puzzleId=${puzzle.id}`
+          );
+          const leaderboardData = await leaderboardRes.json();
+          if (Array.isArray(leaderboardData)) {
+            setLeaderboard(leaderboardData);
+          }
+        }
+      } catch {
+        // Silent fail for result saving
+      }
+    },
+    [user, puzzle.id]
+  );
+
   const triggerConfetti = useCallback(() => {
     const duration = 3000;
     const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
+    const defaults = {
+      startVelocity: 30,
+      spread: 360,
+      ticks: 60,
+      zIndex: 100,
+    };
 
     const randomInRange = (min: number, max: number) =>
       Math.random() * (max - min) + min;
@@ -100,13 +176,17 @@ export function Game({ puzzle }: GameProps) {
           setSolved(true);
           timerRef.current?.stop();
           triggerConfetti();
+
+          // Save result
+          const timeSeconds = timerRef.current?.getTime() || 0;
+          saveResult(timeSeconds);
         }
       } else {
         // Empty -> Excluded: add to excluded
         setExcluded((prev) => [...prev, position]);
       }
     },
-    [puzzle, crowns, excluded, solved, isPaused, triggerConfetti]
+    [puzzle, crowns, excluded, solved, isPaused, triggerConfetti, saveResult]
   );
 
   const handleReset = () => {
@@ -115,6 +195,7 @@ export function Game({ puzzle }: GameProps) {
     setErrors([]);
     setSolved(false);
     setHistory([]);
+    setSaveMessage(null);
   };
 
   const handlePauseToggle = () => {
@@ -168,17 +249,41 @@ export function Game({ puzzle }: GameProps) {
     }
   }, [shareMessage]);
 
+  const userBestTime = leaderboard.find((e) => e.userId === user?.id);
+
   return (
     <div className="flex flex-col items-center gap-6">
       <div className="text-center">
         <h1 className="text-2xl font-bold mb-2">{puzzle.name}</h1>
+        <div className="flex items-center justify-center gap-2 mb-1">
+          {puzzle.creatorName && (
+            <span className="text-gray-500 text-sm">by {puzzle.creatorName}</span>
+          )}
+          {canEdit && (
+            <Link
+              href={`/edit/${puzzle.id}`}
+              className="text-blue-400 hover:text-blue-300 text-sm"
+            >
+              Edit
+            </Link>
+          )}
+        </div>
         <p className="text-gray-400">
           Place {puzzle.regions.length} crowns. One per row, column, and color.
         </p>
         <p className="text-gray-400">Crowns cannot touch each other.</p>
+        {userBestTime && !solved && (
+          <p className="text-blue-400 text-sm mt-2">
+            Your best: {formatTime(userBestTime.timeSeconds)}
+          </p>
+        )}
       </div>
 
-      <Timer ref={timerRef} isPaused={isPaused} onPauseToggle={handlePauseToggle} />
+      <Timer
+        ref={timerRef}
+        isPaused={isPaused}
+        onPauseToggle={handlePauseToggle}
+      />
 
       <div className="relative">
         {isPaused && (
@@ -253,8 +358,40 @@ export function Game({ puzzle }: GameProps) {
       )}
 
       {solved && (
-        <div className="text-green-400 text-2xl font-bold animate-pulse">
-          Solved!
+        <div className="text-center">
+          <div className="text-green-400 text-2xl font-bold animate-pulse mb-2">
+            Solved!
+          </div>
+          {saveMessage && <p className="text-blue-400">{saveMessage}</p>}
+          {!user && (
+            <p className="text-gray-400 text-sm mt-2">
+              Log in to save your times!
+            </p>
+          )}
+        </div>
+      )}
+
+      {leaderboard.length > 0 && (
+        <div className="mt-4 w-full max-w-sm">
+          <h3 className="text-lg font-semibold mb-2 text-center">
+            Leaderboard
+          </h3>
+          <div className="bg-gray-800 rounded-lg overflow-hidden">
+            {leaderboard.slice(0, 5).map((entry, index) => (
+              <div
+                key={entry.userId}
+                className={`flex justify-between px-4 py-2 ${
+                  index % 2 === 0 ? "bg-gray-800" : "bg-gray-750"
+                } ${entry.userId === user?.id ? "text-blue-400" : ""}`}
+              >
+                <span>
+                  {index + 1}. {entry.userName}
+                  {entry.userId === user?.id && " (you)"}
+                </span>
+                <span>{formatTime(entry.timeSeconds)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

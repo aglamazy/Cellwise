@@ -14,7 +14,11 @@ export function PuzzleList({ initialPuzzles }: PuzzleListProps) {
   const [puzzles, setPuzzles] = useState(initialPuzzles);
   const [deleting, setDeleting] = useState<string | null>(null);
   const router = useRouter();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+
+  const canDelete = (puzzle: Puzzle) => {
+    return isAdmin || (user && puzzle.userId === user.id);
+  };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -48,22 +52,27 @@ export function PuzzleList({ initialPuzzles }: PuzzleListProps) {
   return (
     <div className="flex flex-col gap-3 mb-6">
       {puzzles.map((puzzle) => (
-        <div
-          key={puzzle.id}
-          className="flex items-center gap-2"
-        >
+        <div key={puzzle.id} className="flex items-center gap-2">
           <Link
             href={`/puzzle/${puzzle.id}`}
             className="flex-1 block p-4 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
           >
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0">
-              <span className="font-medium">{puzzle.name}</span>
+              <div>
+                <span className="font-medium">{puzzle.name}</span>
+                {puzzle.creatorName && (
+                  <span className="text-gray-500 text-sm ml-2">
+                    by {puzzle.creatorName}
+                  </span>
+                )}
+              </div>
               <span className="text-gray-400 text-sm">
-                {puzzle.width}x{puzzle.height} &middot; {puzzle.regions.length} crowns
+                {puzzle.width}x{puzzle.height} &middot; {puzzle.regions.length}{" "}
+                crowns
               </span>
             </div>
           </Link>
-          {isAdmin && (
+          {canDelete(puzzle) && (
             <button
               onClick={(e) => handleDelete(puzzle.id, e)}
               disabled={deleting === puzzle.id}

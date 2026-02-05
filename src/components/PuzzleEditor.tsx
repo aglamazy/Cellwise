@@ -23,18 +23,46 @@ type EditorMode = "paint" | "solution";
 interface PuzzleEditorProps {
   onSave: (puzzle: Puzzle) => Promise<void>;
   onCancel: () => void;
+  initialPuzzle?: Puzzle;
 }
 
-export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
-  const [name, setName] = useState("");
-  const [size, setSize] = useState(5);
-  const [sizeInput, setSizeInput] = useState("5");
+function puzzleToCellColors(puzzle: Puzzle): (number | null)[][] {
+  const cellColors: (number | null)[][] = Array(puzzle.height)
+    .fill(null)
+    .map(() => Array(puzzle.width).fill(null));
+
+  puzzle.regions.forEach((region, index) => {
+    region.cells.forEach((cell) => {
+      cellColors[cell.row][cell.col] = index;
+    });
+  });
+
+  return cellColors;
+}
+
+export function PuzzleEditor({
+  onSave,
+  onCancel,
+  initialPuzzle,
+}: PuzzleEditorProps) {
+  const [name, setName] = useState(initialPuzzle?.name || "");
+  const [size, setSize] = useState(initialPuzzle?.width || 5);
+  const [sizeInput, setSizeInput] = useState(
+    String(initialPuzzle?.width || 5)
+  );
   const [mode, setMode] = useState<EditorMode>("solution");
   const [selectedColor, setSelectedColor] = useState(0);
-  const [cellColors, setCellColors] = useState<(number | null)[][]>(
-    () => Array(5).fill(null).map(() => Array(5).fill(null))
+  const [cellColors, setCellColors] = useState<(number | null)[][]>(() =>
+    initialPuzzle
+      ? puzzleToCellColors(initialPuzzle)
+      : Array(5)
+          .fill(null)
+          .map(() => Array(5).fill(null))
   );
-  const [solution, setSolution] = useState<Position[]>([]);
+  const [solution, setSolution] = useState<Position[]>(
+    initialPuzzle?.solution || []
+  );
+  const [puzzleId] = useState(initialPuzzle?.id || `puzzle-${Date.now()}`);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showHints, setShowHints] = useState(false);
@@ -329,7 +357,7 @@ export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
 
     try {
       const puzzle: Puzzle = {
-        id: `puzzle-${Date.now()}`,
+        id: puzzleId,
         name: name.trim(),
         width: size,
         height: size,

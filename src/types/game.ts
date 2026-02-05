@@ -16,6 +16,8 @@ export interface Puzzle {
   height: number;
   regions: Region[];
   solution: Position[];
+  userId?: string;
+  creatorName?: string;
 }
 
 export interface Cell {
