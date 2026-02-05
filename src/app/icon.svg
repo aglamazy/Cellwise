@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background -->
+  <rect width="32" height="32" rx="4" fill="#6366f1"/>
+
+  <!-- Grid lines -->
+  <line x1="16" y1="4" x2="16" y2="28" stroke="#4f46e5" stroke-width="1.5"/>
+  <line x1="4" y1="16" x2="28" y2="16" stroke="#4f46e5" stroke-width="1.5"/>
+
+  <!-- Highlighted cell (top-right) -->
+  <rect x="17" y="5" width="10" height="10" fill="#a5b4fc" rx="1"/>
+
+  <!-- Crown/Queen symbol in highlighted cell -->
+  <path d="M19 12 L20 9 L22 11 L24 9 L25 12 L25 13 L19 13 Z" fill="#4f46e5"/>
+  <rect x="19" y="13" width="6" height="1.5" rx="0.5" fill="#4f46e5"/>
+
+  <!-- Dots in other cells to suggest grid puzzle -->
+  <circle cx="10" cy="10" r="1.5" fill="#818cf8"/>
+  <circle cx="10" cy="22" r="1.5" fill="#818cf8"/>
+  <circle cx="22" cy="22" r="1.5" fill="#818cf8"/>
+</svg>
