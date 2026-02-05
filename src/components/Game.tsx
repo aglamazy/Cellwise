@@ -18,6 +18,11 @@ interface GameProps {
   puzzle: Puzzle;
 }
 
+interface GameState {
+  crowns: Position[];
+  excluded: Position[];
+}
+
 export function Game({ puzzle }: GameProps) {
   const [crowns, setCrowns] = useState<Position[]>([]);
   const [excluded, setExcluded] = useState<Position[]>([]);
@@ -25,6 +30,7 @@ export function Game({ puzzle }: GameProps) {
   const [solved, setSolved] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [history, setHistory] = useState<GameState[]>([]);
   const timerRef = useRef<TimerRef>(null);
 
   const autoExcluded = useMemo(
@@ -65,6 +71,9 @@ export function Game({ puzzle }: GameProps) {
     (position: Position) => {
       if (solved || isPaused) return;
 
+      // Save current state to history before making changes
+      setHistory((prev) => [...prev, { crowns, excluded }]);
+
       const hasCrown = hasCrownAt(crowns, position);
       const isExcluded = hasPositionIn(excluded, position);
 
@@ -78,9 +87,10 @@ export function Game({ puzzle }: GameProps) {
         setErrors(newErrors);
       } else if (isExcluded) {
         // Excluded -> Crown: remove from excluded, add crown
-        setExcluded((prev) =>
-          prev.filter((p) => p.row !== position.row || p.col !== position.col)
+        const newExcluded = excluded.filter(
+          (p) => p.row !== position.row || p.col !== position.col
         );
+        setExcluded(newExcluded);
         const newCrowns = [...crowns, position];
         setCrowns(newCrowns);
         const newErrors = validatePlacement(puzzle, newCrowns);
@@ -104,6 +114,7 @@ export function Game({ puzzle }: GameProps) {
     setExcluded([]);
     setErrors([]);
     setSolved(false);
+    setHistory([]);
   };
 
   const handlePauseToggle = () => {
@@ -137,6 +148,18 @@ export function Game({ puzzle }: GameProps) {
       setShareMessage("Failed to copy");
     }
   };
+
+  const handleUndo = useCallback(() => {
+    if (history.length === 0) return;
+
+    const previousState = history[history.length - 1];
+    setHistory((prev) => prev.slice(0, -1));
+    setCrowns(previousState.crowns);
+    setExcluded(previousState.excluded);
+    const newErrors = validatePlacement(puzzle, previousState.crowns);
+    setErrors(newErrors);
+    setSolved(false);
+  }, [history, puzzle]);
 
   useEffect(() => {
     if (shareMessage) {
@@ -183,6 +206,13 @@ export function Game({ puzzle }: GameProps) {
         <span className="text-lg">
           Crowns: {crowns.length} / {puzzle.regions.length}
         </span>
+        <button
+          onClick={handleUndo}
+          disabled={history.length === 0}
+          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Undo
+        </button>
         <button
           onClick={handleReset}
           className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
