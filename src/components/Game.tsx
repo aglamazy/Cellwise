@@ -180,7 +180,7 @@ export function Game({ puzzle }: GameProps) {
 
       <Timer ref={timerRef} isPaused={isPaused} onPauseToggle={handlePauseToggle} />
 
-      <div className="relative">
+      <div className="relative w-full max-w-md">
         {isPaused && (
           <div
             className="absolute inset-0 bg-gray-800 bg-opacity-95 z-10 flex items-center justify-center rounded-lg cursor-pointer"
