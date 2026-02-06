@@ -31,6 +31,8 @@ export function Game({ puzzle }: GameProps) {
   const [isPaused, setIsPaused] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [history, setHistory] = useState<GameState[]>([]);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [hintedCell, setHintedCell] = useState<Position | null>(null);
   const timerRef = useRef<TimerRef>(null);
 
   const autoExcluded = useMemo(
@@ -115,6 +117,8 @@ export function Game({ puzzle }: GameProps) {
     setErrors([]);
     setSolved(false);
     setHistory([]);
+    setHintsUsed(0);
+    setHintedCell(null);
   };
 
   const handlePauseToggle = () => {
@@ -161,6 +165,54 @@ export function Game({ puzzle }: GameProps) {
     setSolved(false);
   }, [history, puzzle]);
 
+  const handleHint = useCallback(() => {
+    if (solved || isPaused || !puzzle.solution) return;
+
+    // Find a solution crown that hasn't been placed yet
+    const nextHint = puzzle.solution.find(
+      (solutionPos) =>
+        !crowns.some(
+          (c) => c.row === solutionPos.row && c.col === solutionPos.col
+        )
+    );
+
+    if (!nextHint) return;
+
+    // Save current state to history
+    setHistory((prev) => [...prev, { crowns, excluded }]);
+
+    // Remove from excluded if it was there
+    const newExcluded = excluded.filter(
+      (p) => p.row !== nextHint.row || p.col !== nextHint.col
+    );
+    setExcluded(newExcluded);
+
+    // Place the crown
+    const newCrowns = [...crowns, nextHint];
+    setCrowns(newCrowns);
+    setHintsUsed((prev) => prev + 1);
+
+    // Highlight the hinted cell briefly
+    setHintedCell(nextHint);
+
+    const newErrors = validatePlacement(puzzle, newCrowns);
+    setErrors(newErrors);
+
+    if (isPuzzleSolved(puzzle, newCrowns)) {
+      setSolved(true);
+      timerRef.current?.stop();
+      triggerConfetti();
+    }
+  }, [puzzle, crowns, excluded, solved, isPaused, triggerConfetti]);
+
+  // Clear hinted cell highlight after animation
+  useEffect(() => {
+    if (hintedCell) {
+      const timeout = setTimeout(() => setHintedCell(null), 1500);
+      return () => clearTimeout(timeout);
+    }
+  }, [hintedCell]);
+
   useEffect(() => {
     if (shareMessage) {
       const timeout = setTimeout(() => setShareMessage(null), 2000);
@@ -198,6 +250,7 @@ export function Game({ puzzle }: GameProps) {
           excluded={excluded}
           autoExcluded={autoExcluded}
           errors={errors}
+          hintedCell={hintedCell}
           onCellClick={handleCellClick}
         />
       </div>
@@ -212,6 +265,21 @@ export function Game({ puzzle }: GameProps) {
           className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Undo
+        </button>
+        <button
+          onClick={handleHint}
+          disabled={solved || !puzzle.solution || crowns.length >= puzzle.regions.length}
+          className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="w-4 h-4"
+          >
+            <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7zM9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9v1z" />
+          </svg>
+          Hint{hintsUsed > 0 ? ` (${hintsUsed})` : ""}
         </button>
         <button
           onClick={handleReset}
