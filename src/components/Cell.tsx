@@ -10,17 +10,20 @@ interface CellProps {
   state: CellState;
   isAutoExcluded: boolean;
   isError: boolean;
+  isHinted: boolean;
   onClick: () => void;
 }
 
-export function Cell({ color, state, isAutoExcluded, isError, onClick }: CellProps) {
+export function Cell({ color, state, isAutoExcluded, isError, isHinted, onClick }: CellProps) {
   const showExclude = state === "excluded" || (state === "empty" && isAutoExcluded);
   const showCrown = state === "crown";
 
   return (
     <button
       onClick={onClick}
-      className="aspect-square w-full flex items-center justify-center border border-gray-700/50 transition-all hover:brightness-110 active:brightness-90"
+      className={`aspect-square w-full flex items-center justify-center border border-gray-700/50 transition-all hover:brightness-110 active:brightness-90 ${
+        isHinted ? "ring-2 ring-yellow-300 ring-inset animate-pulse" : ""
+      }`}
       style={{ backgroundColor: color }}
     >
       {showCrown && (

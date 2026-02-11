@@ -17,6 +17,7 @@ interface BoardProps {
   excluded: Position[];
   autoExcluded: Position[];
   errors: ValidationError[];
+  hintedCell: Position | null;
   onCellClick: (position: Position) => void;
 }
 
@@ -26,6 +27,7 @@ export function Board({
   excluded,
   autoExcluded,
   errors,
+  hintedCell,
   onCellClick,
 }: BoardProps) {
   const cells: React.ReactNode[] = [];
@@ -38,6 +40,7 @@ export function Board({
       const isExcluded = hasPositionIn(excluded, position);
       const isAutoExcluded = hasPositionIn(autoExcluded, position);
       const isError = hasCrown && isPositionInError(position, errors);
+      const isHinted = hintedCell !== null && hintedCell.row === row && hintedCell.col === col;
 
       let state: CellState = "empty";
       if (hasCrown) {
@@ -53,6 +56,7 @@ export function Board({
           state={state}
           isAutoExcluded={isAutoExcluded}
           isError={isError}
+          isHinted={isHinted}
           onClick={() => onCellClick(position)}
         />
       );
