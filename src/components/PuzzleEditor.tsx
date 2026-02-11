@@ -26,7 +26,10 @@ interface PuzzleEditorProps {
 }
 
 export function PuzzleEditor({ onSave, onCancel }: PuzzleEditorProps) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() => {
+    const today = new Date();
+    return `Puzzle ${today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  });
   const [size, setSize] = useState(5);
   const [sizeInput, setSizeInput] = useState("5");
   const [mode, setMode] = useState<EditorMode>("solution");

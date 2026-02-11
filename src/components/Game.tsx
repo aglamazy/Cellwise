@@ -13,6 +13,7 @@ import {
   getAutoExcludedPositions,
   ValidationError,
 } from "@/lib/game";
+import { markPuzzleCompleted } from "@/lib/puzzleHistory";
 
 interface GameProps {
   puzzle: Puzzle;
@@ -100,6 +101,7 @@ export function Game({ puzzle }: GameProps) {
 
         if (isPuzzleSolved(puzzle, newCrowns)) {
           setSolved(true);
+          markPuzzleCompleted(puzzle.id);
           timerRef.current?.stop();
           triggerConfetti();
         }
@@ -200,6 +202,7 @@ export function Game({ puzzle }: GameProps) {
 
     if (isPuzzleSolved(puzzle, newCrowns)) {
       setSolved(true);
+      markPuzzleCompleted(puzzle.id);
       timerRef.current?.stop();
       triggerConfetti();
     }
