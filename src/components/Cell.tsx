@@ -11,7 +11,7 @@ interface CellProps {
   isAutoExcluded: boolean;
   isError: boolean;
   isHinted: boolean;
-  hintType: "cant_be" | "must_be" | null;
+  hintType: "error" | "cant_be" | "must_be" | null;
   autoExcludeReason: string | null;
   onClick: () => void;
 }
@@ -21,9 +21,11 @@ export function Cell({ color, state, isAutoExcluded, isError, isHinted, hintType
   const showCrown = state === "crown";
 
   const hintRingClass = isHinted
-    ? hintType === "cant_be"
-      ? "ring-2 ring-red-400 ring-inset animate-pulse"
-      : "ring-2 ring-yellow-300 ring-inset animate-pulse"
+    ? hintType === "error"
+      ? "ring-2 ring-orange-400 ring-inset animate-pulse"
+      : hintType === "cant_be"
+        ? "ring-2 ring-red-400 ring-inset animate-pulse"
+        : "ring-2 ring-yellow-300 ring-inset animate-pulse"
     : "";
 
   return (
