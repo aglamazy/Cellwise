@@ -20,7 +20,7 @@ interface BoardProps {
   autoExclusions: AutoExclusion[];
   errors: ValidationError[];
   hintedCell: Position | null;
-  hintType: "cant_be" | "must_be" | null;
+  hintType: "error" | "cant_be" | "must_be" | null;
   onCellClick: (position: Position) => void;
 }
 

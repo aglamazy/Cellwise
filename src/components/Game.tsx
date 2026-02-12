@@ -36,7 +36,7 @@ export function Game({ puzzle }: GameProps) {
   const [history, setHistory] = useState<GameState[]>([]);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [hintedCell, setHintedCell] = useState<Position | null>(null);
-  const [hintType, setHintType] = useState<"cant_be" | "must_be" | null>(null);
+  const [hintType, setHintType] = useState<"error" | "cant_be" | "must_be" | null>(null);
   const [hintMessage, setHintMessage] = useState<string | null>(null);
   const timerRef = useRef<TimerRef>(null);
 
@@ -228,7 +228,7 @@ export function Game({ puzzle }: GameProps) {
         setExcluded((prev) => [...prev, hint.position]);
       }
     }
-    // For "must_be": just highlight the cell, let the player place it
+    // For "error" and "must_be": just highlight the cell, let the player act
   }, [puzzle, crowns, excluded, solved, isPaused]);
 
   useEffect(() => {
@@ -337,9 +337,11 @@ export function Game({ puzzle }: GameProps) {
       {hintMessage && (
         <div
           className={`text-sm px-4 py-2 rounded max-w-md text-center transition-opacity flex items-center gap-2 ${
-            hintType === "cant_be"
-              ? "bg-red-900/40 text-red-300 border border-red-700/50"
-              : "bg-yellow-900/40 text-yellow-300 border border-yellow-700/50"
+            hintType === "error"
+              ? "bg-orange-900/40 text-orange-300 border border-orange-700/50"
+              : hintType === "cant_be"
+                ? "bg-red-900/40 text-red-300 border border-red-700/50"
+                : "bg-yellow-900/40 text-yellow-300 border border-yellow-700/50"
           }`}
         >
           <span className="flex-1">{hintMessage}</span>
