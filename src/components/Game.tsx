@@ -11,6 +11,7 @@ import {
   hasCrownAt,
   hasPositionIn,
   getAutoExcludedPositions,
+  getAutoExcludedPositionsWithReasons,
   generateHint,
   ValidationError,
 } from "@/lib/game";
@@ -43,6 +44,13 @@ export function Game({ puzzle }: GameProps) {
     () => getAutoExcludedPositions(puzzle, crowns),
     [puzzle, crowns]
   );
+
+  const autoExclusions = useMemo(
+    () => getAutoExcludedPositionsWithReasons(puzzle, crowns),
+    [puzzle, crowns]
+  );
+
+  const [wrongExclusionMsg, setWrongExclusionMsg] = useState<string | null>(null);
 
   const clearHint = useCallback(() => {
     setHintedCell(null);
@@ -83,8 +91,9 @@ export function Game({ puzzle }: GameProps) {
     (position: Position) => {
       if (solved || isPaused) return;
 
-      // Clear any active hint when user acts
+      // Clear any active hint or wrong-exclusion warning when user acts
       clearHint();
+      setWrongExclusionMsg(null);
 
       // Save current state to history before making changes
       setHistory((prev) => [...prev, { crowns, excluded }]);
@@ -120,6 +129,18 @@ export function Game({ puzzle }: GameProps) {
       } else {
         // Empty -> Excluded: add to excluded
         setExcluded((prev) => [...prev, position]);
+
+        // Warn if the user excluded a cell that is actually in the solution
+        if (puzzle.solution) {
+          const isInSolution = puzzle.solution.some(
+            (s) => s.row === position.row && s.col === position.col
+          );
+          if (isInSolution) {
+            setWrongExclusionMsg(
+              "This cell actually needs a crown — your exclusion is incorrect!"
+            );
+          }
+        }
       }
     },
     [puzzle, crowns, excluded, solved, isPaused, triggerConfetti, clearHint]
@@ -135,6 +156,7 @@ export function Game({ puzzle }: GameProps) {
     setHintedCell(null);
     setHintType(null);
     setHintMessage(null);
+    setWrongExclusionMsg(null);
   };
 
   const handlePauseToggle = () => {
@@ -245,6 +267,7 @@ export function Game({ puzzle }: GameProps) {
           crowns={crowns}
           excluded={excluded}
           autoExcluded={autoExcluded}
+          autoExclusions={autoExclusions}
           errors={errors}
           hintedCell={hintedCell}
           hintType={hintType}
@@ -324,6 +347,21 @@ export function Game({ puzzle }: GameProps) {
             onClick={clearHint}
             className="ml-2 opacity-60 hover:opacity-100 transition-opacity"
             aria-label="Dismiss hint"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {wrongExclusionMsg && (
+        <div className="text-sm px-4 py-2 rounded max-w-md text-center transition-opacity flex items-center gap-2 bg-orange-900/40 text-orange-300 border border-orange-700/50">
+          <span className="flex-1">{wrongExclusionMsg}</span>
+          <button
+            onClick={() => setWrongExclusionMsg(null)}
+            className="ml-2 opacity-60 hover:opacity-100 transition-opacity"
+            aria-label="Dismiss warning"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />

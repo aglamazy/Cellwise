@@ -12,10 +12,11 @@ interface CellProps {
   isError: boolean;
   isHinted: boolean;
   hintType: "cant_be" | "must_be" | null;
+  autoExcludeReason: string | null;
   onClick: () => void;
 }
 
-export function Cell({ color, state, isAutoExcluded, isError, isHinted, hintType, onClick }: CellProps) {
+export function Cell({ color, state, isAutoExcluded, isError, isHinted, hintType, autoExcludeReason, onClick }: CellProps) {
   const showExclude = state === "excluded" || (state === "empty" && isAutoExcluded);
   const showCrown = state === "crown";
 
@@ -28,6 +29,7 @@ export function Cell({ color, state, isAutoExcluded, isError, isHinted, hintType
   return (
     <button
       onClick={onClick}
+      title={isAutoExcluded && !showCrown && state !== "excluded" && autoExcludeReason ? autoExcludeReason : undefined}
       className={`aspect-square w-full flex items-center justify-center border border-gray-700/50 transition-all hover:brightness-110 active:brightness-90 ${hintRingClass}`}
       style={{ backgroundColor: color }}
     >

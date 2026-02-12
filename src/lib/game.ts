@@ -549,3 +549,57 @@ export function getAutoExcludedPositions(
 
   return excluded;
 }
+
+export interface AutoExclusion {
+  position: Position;
+  reason: string;
+}
+
+/**
+ * Like getAutoExcludedPositions but also returns a human-readable reason
+ * explaining why each cell was eliminated.
+ */
+export function getAutoExcludedPositionsWithReasons(
+  puzzle: Puzzle,
+  crowns: Position[]
+): AutoExclusion[] {
+  const exclusions: AutoExclusion[] = [];
+  const seen = new Set<string>();
+
+  for (const crown of crowns) {
+    const crownRegionId = getRegionIdAt(puzzle, crown);
+
+    for (let row = 0; row < puzzle.height; row++) {
+      for (let col = 0; col < puzzle.width; col++) {
+        const pos = { row, col };
+        const key = `${row}-${col}`;
+
+        if (seen.has(key) || hasCrownAt(crowns, pos)) {
+          continue;
+        }
+
+        const posRegionId = getRegionIdAt(puzzle, pos);
+        const sameRow = row === crown.row;
+        const sameCol = col === crown.col;
+        const sameRegion = posRegionId === crownRegionId;
+        const isAdj = areAdjacent(crown, pos);
+
+        if (sameRow || sameCol || sameRegion || isAdj) {
+          const reasons: string[] = [];
+          if (sameRow) reasons.push("same row as a crown");
+          if (sameCol) reasons.push("same column as a crown");
+          if (sameRegion) reasons.push("same color region as a crown");
+          if (isAdj) reasons.push("adjacent to a crown");
+
+          exclusions.push({
+            position: pos,
+            reason: `Eliminated: ${reasons.join(", ")}`,
+          });
+          seen.add(key);
+        }
+      }
+    }
+  }
+
+  return exclusions;
+}
