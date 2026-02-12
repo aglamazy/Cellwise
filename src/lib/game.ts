@@ -325,14 +325,18 @@ export interface Hint {
  * Generate a logical deduction hint based on the current board state.
  * Prefers elimination ("cant_be") hints over forced placement ("must_be").
  * Falls back to solution-based elimination when no pure logic deduction is found.
+ * Accepts manually excluded positions so hints skip cells the user already eliminated.
  */
-export function generateHint(puzzle: Puzzle, crowns: Position[]): Hint | null {
+export function generateHint(puzzle: Puzzle, crowns: Position[], excluded: Position[] = []): Hint | null {
   const size = puzzle.width;
 
   // Determine which rows, columns, and regions already have crowns
   const usedRows = new Set(crowns.map((c) => c.row));
   const usedCols = new Set(crowns.map((c) => c.col));
   const usedRegions = new Set(crowns.map((c) => getRegionIdAt(puzzle, c)));
+
+  // Build set of manually excluded positions for quick lookup
+  const excludedSet = new Set(excluded.map((p) => `${p.row}-${p.col}`));
 
   // Build candidate set: cells that could potentially have a crown
   const candidates: Position[] = [];
@@ -345,6 +349,8 @@ export function generateHint(puzzle: Puzzle, crowns: Position[]): Hint | null {
       if (usedRegions.has(regionId)) continue;
       const isAdjacentToCrown = crowns.some((c) => areAdjacent(c, pos));
       if (isAdjacentToCrown) continue;
+      // Skip cells the user already manually excluded
+      if (excludedSet.has(`${row}-${col}`)) continue;
       candidates.push(pos);
     }
   }
