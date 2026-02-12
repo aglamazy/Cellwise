@@ -631,6 +631,137 @@ export function generateHint(puzzle: Puzzle, crowns: Position[], excluded: Posit
     }
   }
 
+  // --- Strategy: Row/Column permutation enumeration ---
+  // For subsets of x rows, enumerate all valid partial crown placements
+  // (respecting column-uniqueness, color-uniqueness, AND adjacency).
+  // Cells that never appear in any valid partial placement can be eliminated.
+  // Same for column subsets.
+  {
+    const candsByRow = new Map<number, Position[]>();
+    const candsByCol = new Map<number, Position[]>();
+    for (const c of candidates) {
+      if (!candsByRow.has(c.row)) candsByRow.set(c.row, []);
+      if (!candsByCol.has(c.col)) candsByCol.set(c.col, []);
+      candsByRow.get(c.row)!.push(c);
+      candsByCol.get(c.col)!.push(c);
+    }
+
+    const unfilledRowsEnum: number[] = [];
+    const unfilledColsEnum: number[] = [];
+    for (let i = 0; i < size; i++) {
+      if (!usedRows.has(i)) unfilledRowsEnum.push(i);
+      if (!usedCols.has(i)) unfilledColsEnum.push(i);
+    }
+
+    function* enumSubsets(arr: number[], k: number): Generator<number[]> {
+      if (k === 0) { yield []; return; }
+      if (arr.length < k) return;
+      for (let i = 0; i <= arr.length - k; i++) {
+        for (const rest of enumSubsets(arr.slice(i + 1), k - 1)) {
+          yield [arr[i], ...rest];
+        }
+      }
+    }
+
+    // Enumerate valid partial placements for a set of rows
+    function findUsedCellsInRows(rowSubset: number[]): Set<string> {
+      const x = rowSubset.length;
+      const usedInAny = new Set<string>();
+
+      function enumerate(idx: number, placed: Position[],
+                         uCols: Set<number>, uRegs: Set<number>): void {
+        if (idx === x) {
+          for (const p of placed) usedInAny.add(`${p.row}-${p.col}`);
+          return;
+        }
+        const rowCands = candsByRow.get(rowSubset[idx]) || [];
+        for (const cell of rowCands) {
+          if (uCols.has(cell.col)) continue;
+          const rid = regionOf(cell);
+          if (uRegs.has(rid)) continue;
+          if (placed.some((p) => areAdjacent(p, cell))) continue;
+
+          placed.push(cell);
+          uCols.add(cell.col);
+          uRegs.add(rid);
+          enumerate(idx + 1, placed, uCols, uRegs);
+          placed.pop();
+          uCols.delete(cell.col);
+          uRegs.delete(rid);
+        }
+      }
+
+      enumerate(0, [], new Set(), new Set());
+      return usedInAny;
+    }
+
+    // Enumerate valid partial placements for a set of columns
+    function findUsedCellsInCols(colSubset: number[]): Set<string> {
+      const x = colSubset.length;
+      const usedInAny = new Set<string>();
+
+      function enumerate(idx: number, placed: Position[],
+                         uRows: Set<number>, uRegs: Set<number>): void {
+        if (idx === x) {
+          for (const p of placed) usedInAny.add(`${p.row}-${p.col}`);
+          return;
+        }
+        const colCands = candsByCol.get(colSubset[idx]) || [];
+        for (const cell of colCands) {
+          if (uRows.has(cell.row)) continue;
+          const rid = regionOf(cell);
+          if (uRegs.has(rid)) continue;
+          if (placed.some((p) => areAdjacent(p, cell))) continue;
+
+          placed.push(cell);
+          uRows.add(cell.row);
+          uRegs.add(rid);
+          enumerate(idx + 1, placed, uRows, uRegs);
+          placed.pop();
+          uRows.delete(cell.row);
+          uRegs.delete(rid);
+        }
+      }
+
+      enumerate(0, [], new Set(), new Set());
+      return usedInAny;
+    }
+
+    for (let x = 2; x <= unfilledRowsEnum.length; x++) {
+      // Row subsets
+      for (const rowSubset of enumSubsets(unfilledRowsEnum, x)) {
+        const usedInAny = findUsedCellsInRows(rowSubset);
+        for (const r of rowSubset) {
+          for (const c of candsByRow.get(r) || []) {
+            if (!usedInAny.has(`${c.row}-${c.col}`)) {
+              return {
+                type: "cant_be" as const,
+                position: c,
+                reason: `Analyzing ${x} rows together, no valid crown arrangement uses this cell`,
+              };
+            }
+          }
+        }
+      }
+
+      // Column subsets
+      for (const colSubset of enumSubsets(unfilledColsEnum, x)) {
+        const usedInAny = findUsedCellsInCols(colSubset);
+        for (const col of colSubset) {
+          for (const c of candsByCol.get(col) || []) {
+            if (!usedInAny.has(`${c.row}-${c.col}`)) {
+              return {
+                type: "cant_be" as const,
+                position: c,
+                reason: `Analyzing ${x} columns together, no valid crown arrangement uses this cell`,
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+
   // --- Strategy 3: Naked single (only 1 candidate in a row/column/region) ---
   for (let row = 0; row < size; row++) {
     if (usedRows.has(row)) continue;
