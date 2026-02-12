@@ -13,7 +13,6 @@ import {
   getAutoExcludedPositions,
   generateHint,
   ValidationError,
-  Hint,
 } from "@/lib/game";
 import { markPuzzleCompleted } from "@/lib/puzzleHistory";
 
@@ -44,6 +43,12 @@ export function Game({ puzzle }: GameProps) {
     () => getAutoExcludedPositions(puzzle, crowns),
     [puzzle, crowns]
   );
+
+  const clearHint = useCallback(() => {
+    setHintedCell(null);
+    setHintType(null);
+    setHintMessage(null);
+  }, []);
 
   const triggerConfetti = useCallback(() => {
     const duration = 3000;
@@ -77,6 +82,9 @@ export function Game({ puzzle }: GameProps) {
   const handleCellClick = useCallback(
     (position: Position) => {
       if (solved || isPaused) return;
+
+      // Clear any active hint when user acts
+      clearHint();
 
       // Save current state to history before making changes
       setHistory((prev) => [...prev, { crowns, excluded }]);
@@ -114,7 +122,7 @@ export function Game({ puzzle }: GameProps) {
         setExcluded((prev) => [...prev, position]);
       }
     },
-    [puzzle, crowns, excluded, solved, isPaused, triggerConfetti]
+    [puzzle, crowns, excluded, solved, isPaused, triggerConfetti, clearHint]
   );
 
   const handleReset = () => {
@@ -164,6 +172,8 @@ export function Game({ puzzle }: GameProps) {
   const handleUndo = useCallback(() => {
     if (history.length === 0) return;
 
+    clearHint();
+
     const previousState = history[history.length - 1];
     setHistory((prev) => prev.slice(0, -1));
     setCrowns(previousState.crowns);
@@ -171,12 +181,12 @@ export function Game({ puzzle }: GameProps) {
     const newErrors = validatePlacement(puzzle, previousState.crowns);
     setErrors(newErrors);
     setSolved(false);
-  }, [history, puzzle]);
+  }, [history, puzzle, clearHint]);
 
   const handleHint = useCallback(() => {
     if (solved || isPaused) return;
 
-    const hint = generateHint(puzzle, crowns);
+    const hint = generateHint(puzzle, crowns, excluded);
     if (!hint) return;
 
     setHintsUsed((prev) => prev + 1);
@@ -198,18 +208,6 @@ export function Game({ puzzle }: GameProps) {
     }
     // For "must_be": just highlight the cell, let the player place it
   }, [puzzle, crowns, excluded, solved, isPaused]);
-
-  // Clear hinted cell highlight and message after animation
-  useEffect(() => {
-    if (hintedCell) {
-      const timeout = setTimeout(() => {
-        setHintedCell(null);
-        setHintType(null);
-        setHintMessage(null);
-      }, 3000);
-      return () => clearTimeout(timeout);
-    }
-  }, [hintedCell]);
 
   useEffect(() => {
     if (shareMessage) {
@@ -315,13 +313,22 @@ export function Game({ puzzle }: GameProps) {
 
       {hintMessage && (
         <div
-          className={`text-sm px-4 py-2 rounded max-w-md text-center transition-opacity ${
+          className={`text-sm px-4 py-2 rounded max-w-md text-center transition-opacity flex items-center gap-2 ${
             hintType === "cant_be"
               ? "bg-red-900/40 text-red-300 border border-red-700/50"
               : "bg-yellow-900/40 text-yellow-300 border border-yellow-700/50"
           }`}
         >
-          {hintMessage}
+          <span className="flex-1">{hintMessage}</span>
+          <button
+            onClick={clearHint}
+            className="ml-2 opacity-60 hover:opacity-100 transition-opacity"
+            aria-label="Dismiss hint"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
         </div>
       )}
 
