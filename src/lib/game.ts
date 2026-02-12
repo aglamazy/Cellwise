@@ -456,6 +456,181 @@ export function generateHint(puzzle: Puzzle, crowns: Position[], excluded: Posit
     }
   }
 
+  // --- Strategy: Permutation-based subset constraint (generalized) ---
+  // If x colors can only go in x rows, no other color can go in those rows.
+  // If x rows only have x colors available, those colors can't go elsewhere.
+  // Same logic for columns and for row↔column mapping.
+  // Iterates x from 1 upward to find the simplest deduction first.
+  {
+    const unfilledRegionIds = puzzle.regions
+      .filter((r) => !usedRegions.has(r.id))
+      .map((r) => r.id);
+
+    const unfilledRows: number[] = [];
+    const unfilledCols: number[] = [];
+    for (let i = 0; i < size; i++) {
+      if (!usedRows.has(i)) unfilledRows.push(i);
+      if (!usedCols.has(i)) unfilledCols.push(i);
+    }
+
+    // Build bipartite candidate mappings
+    const regionToRows = new Map<number, Set<number>>();
+    const regionToCols = new Map<number, Set<number>>();
+    const rowToRegions = new Map<number, Set<number>>();
+    const colToRegions = new Map<number, Set<number>>();
+    const rowToCols = new Map<number, Set<number>>();
+    const colToRows = new Map<number, Set<number>>();
+
+    for (const c of candidates) {
+      const rid = regionOf(c);
+      if (!regionToRows.has(rid)) regionToRows.set(rid, new Set());
+      if (!regionToCols.has(rid)) regionToCols.set(rid, new Set());
+      if (!rowToRegions.has(c.row)) rowToRegions.set(c.row, new Set());
+      if (!colToRegions.has(c.col)) colToRegions.set(c.col, new Set());
+      if (!rowToCols.has(c.row)) rowToCols.set(c.row, new Set());
+      if (!colToRows.has(c.col)) colToRows.set(c.col, new Set());
+
+      regionToRows.get(rid)!.add(c.row);
+      regionToCols.get(rid)!.add(c.col);
+      rowToRegions.get(c.row)!.add(rid);
+      colToRegions.get(c.col)!.add(rid);
+      rowToCols.get(c.row)!.add(c.col);
+      colToRows.get(c.col)!.add(c.row);
+    }
+
+    function* subsets(arr: number[], k: number): Generator<number[]> {
+      if (k === 0) { yield []; return; }
+      if (arr.length < k) return;
+      for (let i = 0; i <= arr.length - k; i++) {
+        for (const rest of subsets(arr.slice(i + 1), k - 1)) {
+          yield [arr[i], ...rest];
+        }
+      }
+    }
+
+    for (let x = 1; x < unfilledRegionIds.length; x++) {
+      // Naked color→row: x colors whose candidates span exactly x rows
+      for (const colorSub of subsets(unfilledRegionIds, x)) {
+        const rowUnion = new Set<number>();
+        for (const rid of colorSub) {
+          regionToRows.get(rid)?.forEach((r) => rowUnion.add(r));
+        }
+        if (rowUnion.size === x) {
+          const colorSet = new Set(colorSub);
+          const elim = candidates.filter(
+            (c) => rowUnion.has(c.row) && !colorSet.has(regionOf(c))
+          );
+          if (elim.length > 0) {
+            return { type: "cant_be" as const, position: elim[0],
+              reason: x === 1
+                ? `One color region must place its crown in this row, so this cell can't have one`
+                : `${x} color regions must place their crowns in ${x} specific rows, so this cell can't have a crown` };
+          }
+        }
+      }
+
+      // Naked color→col: x colors whose candidates span exactly x columns
+      for (const colorSub of subsets(unfilledRegionIds, x)) {
+        const colUnion = new Set<number>();
+        for (const rid of colorSub) {
+          regionToCols.get(rid)?.forEach((c) => colUnion.add(c));
+        }
+        if (colUnion.size === x) {
+          const colorSet = new Set(colorSub);
+          const elim = candidates.filter(
+            (c) => colUnion.has(c.col) && !colorSet.has(regionOf(c))
+          );
+          if (elim.length > 0) {
+            return { type: "cant_be" as const, position: elim[0],
+              reason: x === 1
+                ? `One color region must place its crown in this column, so this cell can't have one`
+                : `${x} color regions must place their crowns in ${x} specific columns, so this cell can't have a crown` };
+          }
+        }
+      }
+
+      // Hidden row→color: x rows whose available colors total exactly x
+      for (const rowSub of subsets(unfilledRows, x)) {
+        const rowSet = new Set(rowSub);
+        const avail = new Set<number>();
+        for (const r of rowSub) {
+          rowToRegions.get(r)?.forEach((rid) => avail.add(rid));
+        }
+        if (avail.size === x) {
+          const elim = candidates.filter(
+            (c) => !rowSet.has(c.row) && avail.has(regionOf(c))
+          );
+          if (elim.length > 0) {
+            return { type: "cant_be" as const, position: elim[0],
+              reason: x === 1
+                ? `One row can only contain one specific color, so that color can't appear in other rows`
+                : `${x} rows can only contain ${x} specific colors, so those colors can't appear in other rows` };
+          }
+        }
+      }
+
+      // Hidden col→color: x columns whose available colors total exactly x
+      for (const colSub of subsets(unfilledCols, x)) {
+        const colSet = new Set(colSub);
+        const avail = new Set<number>();
+        for (const c of colSub) {
+          colToRegions.get(c)?.forEach((rid) => avail.add(rid));
+        }
+        if (avail.size === x) {
+          const elim = candidates.filter(
+            (c) => !colSet.has(c.col) && avail.has(regionOf(c))
+          );
+          if (elim.length > 0) {
+            return { type: "cant_be" as const, position: elim[0],
+              reason: x === 1
+                ? `One column can only contain one specific color, so that color can't appear in other columns`
+                : `${x} columns can only contain ${x} specific colors, so those colors can't appear in other columns` };
+          }
+        }
+      }
+
+      // Naked row→col: x rows whose col-candidates span exactly x columns
+      for (const rowSub of subsets(unfilledRows, x)) {
+        const rowSet = new Set(rowSub);
+        const colUnion = new Set<number>();
+        for (const r of rowSub) {
+          rowToCols.get(r)?.forEach((c) => colUnion.add(c));
+        }
+        if (colUnion.size === x) {
+          const elim = candidates.filter(
+            (c) => colUnion.has(c.col) && !rowSet.has(c.row)
+          );
+          if (elim.length > 0) {
+            return { type: "cant_be" as const, position: elim[0],
+              reason: x === 1
+                ? `One row must place its crown in a specific column, so this cell can't have a crown`
+                : `${x} rows must place their crowns in ${x} specific columns, so this cell can't have a crown` };
+          }
+        }
+      }
+
+      // Hidden col→row: x columns whose available rows total exactly x
+      for (const colSub of subsets(unfilledCols, x)) {
+        const colSet = new Set(colSub);
+        const avail = new Set<number>();
+        for (const c of colSub) {
+          colToRows.get(c)?.forEach((r) => avail.add(r));
+        }
+        if (avail.size === x) {
+          const elim = candidates.filter(
+            (c) => !colSet.has(c.col) && avail.has(c.row)
+          );
+          if (elim.length > 0) {
+            return { type: "cant_be" as const, position: elim[0],
+              reason: x === 1
+                ? `One column must have its crown from a specific row, so that row can't use other columns`
+                : `${x} columns can only have crowns from ${x} specific rows, so those rows can't use other columns` };
+          }
+        }
+      }
+    }
+  }
+
   // --- Strategy 3: Naked single (only 1 candidate in a row/column/region) ---
   for (let row = 0; row < size; row++) {
     if (usedRows.has(row)) continue;
