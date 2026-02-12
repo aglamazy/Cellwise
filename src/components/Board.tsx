@@ -8,6 +8,7 @@ import {
   hasPositionIn,
   isPositionInError,
   ValidationError,
+  AutoExclusion,
 } from "@/lib/game";
 import { Cell, CellState } from "./Cell";
 
@@ -16,6 +17,7 @@ interface BoardProps {
   crowns: Position[];
   excluded: Position[];
   autoExcluded: Position[];
+  autoExclusions: AutoExclusion[];
   errors: ValidationError[];
   hintedCell: Position | null;
   hintType: "cant_be" | "must_be" | null;
@@ -27,12 +29,19 @@ export function Board({
   crowns,
   excluded,
   autoExcluded,
+  autoExclusions,
   errors,
   hintedCell,
   hintType,
   onCellClick,
 }: BoardProps) {
   const cells: React.ReactNode[] = [];
+
+  // Build a map from position key to reason for quick lookup
+  const reasonMap = new Map<string, string>();
+  for (const exclusion of autoExclusions) {
+    reasonMap.set(`${exclusion.position.row}-${exclusion.position.col}`, exclusion.reason);
+  }
 
   for (let row = 0; row < puzzle.height; row++) {
     for (let col = 0; col < puzzle.width; col++) {
@@ -43,6 +52,7 @@ export function Board({
       const isAutoExcluded = hasPositionIn(autoExcluded, position);
       const isError = hasCrown && isPositionInError(position, errors);
       const isHinted = hintedCell !== null && hintedCell.row === row && hintedCell.col === col;
+      const autoExcludeReason = reasonMap.get(`${row}-${col}`) || null;
 
       let state: CellState = "empty";
       if (hasCrown) {
@@ -60,6 +70,7 @@ export function Board({
           isError={isError}
           isHinted={isHinted}
           hintType={isHinted ? hintType : null}
+          autoExcludeReason={autoExcludeReason}
           onClick={() => onCellClick(position)}
         />
       );
