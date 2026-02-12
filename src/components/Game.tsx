@@ -11,7 +11,9 @@ import {
   hasCrownAt,
   hasPositionIn,
   getAutoExcludedPositions,
+  generateHint,
   ValidationError,
+  Hint,
 } from "@/lib/game";
 import { markPuzzleCompleted } from "@/lib/puzzleHistory";
 
@@ -34,6 +36,8 @@ export function Game({ puzzle }: GameProps) {
   const [history, setHistory] = useState<GameState[]>([]);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [hintedCell, setHintedCell] = useState<Position | null>(null);
+  const [hintType, setHintType] = useState<"cant_be" | "must_be" | null>(null);
+  const [hintMessage, setHintMessage] = useState<string | null>(null);
   const timerRef = useRef<TimerRef>(null);
 
   const autoExcluded = useMemo(
@@ -121,6 +125,8 @@ export function Game({ puzzle }: GameProps) {
     setHistory([]);
     setHintsUsed(0);
     setHintedCell(null);
+    setHintType(null);
+    setHintMessage(null);
   };
 
   const handlePauseToggle = () => {
@@ -168,50 +174,39 @@ export function Game({ puzzle }: GameProps) {
   }, [history, puzzle]);
 
   const handleHint = useCallback(() => {
-    if (solved || isPaused || !puzzle.solution) return;
+    if (solved || isPaused) return;
 
-    // Find a solution crown that hasn't been placed yet
-    const nextHint = puzzle.solution.find(
-      (solutionPos) =>
-        !crowns.some(
-          (c) => c.row === solutionPos.row && c.col === solutionPos.col
-        )
-    );
+    const hint = generateHint(puzzle, crowns);
+    if (!hint) return;
 
-    if (!nextHint) return;
-
-    // Save current state to history
-    setHistory((prev) => [...prev, { crowns, excluded }]);
-
-    // Remove from excluded if it was there
-    const newExcluded = excluded.filter(
-      (p) => p.row !== nextHint.row || p.col !== nextHint.col
-    );
-    setExcluded(newExcluded);
-
-    // Place the crown
-    const newCrowns = [...crowns, nextHint];
-    setCrowns(newCrowns);
     setHintsUsed((prev) => prev + 1);
+    setHintedCell(hint.position);
+    setHintType(hint.type);
+    setHintMessage(hint.reason);
 
-    // Highlight the hinted cell briefly
-    setHintedCell(nextHint);
+    if (hint.type === "cant_be") {
+      // Save current state to history
+      setHistory((prev) => [...prev, { crowns, excluded }]);
 
-    const newErrors = validatePlacement(puzzle, newCrowns);
-    setErrors(newErrors);
-
-    if (isPuzzleSolved(puzzle, newCrowns)) {
-      setSolved(true);
-      markPuzzleCompleted(puzzle.id);
-      timerRef.current?.stop();
-      triggerConfetti();
+      // Mark the cell as excluded if not already
+      const alreadyExcluded = excluded.some(
+        (p) => p.row === hint.position.row && p.col === hint.position.col
+      );
+      if (!alreadyExcluded) {
+        setExcluded((prev) => [...prev, hint.position]);
+      }
     }
-  }, [puzzle, crowns, excluded, solved, isPaused, triggerConfetti]);
+    // For "must_be": just highlight the cell, let the player place it
+  }, [puzzle, crowns, excluded, solved, isPaused]);
 
-  // Clear hinted cell highlight after animation
+  // Clear hinted cell highlight and message after animation
   useEffect(() => {
     if (hintedCell) {
-      const timeout = setTimeout(() => setHintedCell(null), 1500);
+      const timeout = setTimeout(() => {
+        setHintedCell(null);
+        setHintType(null);
+        setHintMessage(null);
+      }, 3000);
       return () => clearTimeout(timeout);
     }
   }, [hintedCell]);
@@ -254,6 +249,7 @@ export function Game({ puzzle }: GameProps) {
           autoExcluded={autoExcluded}
           errors={errors}
           hintedCell={hintedCell}
+          hintType={hintType}
           onCellClick={handleCellClick}
         />
       </div>
@@ -271,7 +267,7 @@ export function Game({ puzzle }: GameProps) {
         </button>
         <button
           onClick={handleHint}
-          disabled={solved || !puzzle.solution || crowns.length >= puzzle.regions.length}
+          disabled={solved || crowns.length >= puzzle.regions.length}
           className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           <svg
@@ -316,6 +312,18 @@ export function Game({ puzzle }: GameProps) {
           )}
         </div>
       </div>
+
+      {hintMessage && (
+        <div
+          className={`text-sm px-4 py-2 rounded max-w-md text-center transition-opacity ${
+            hintType === "cant_be"
+              ? "bg-red-900/40 text-red-300 border border-red-700/50"
+              : "bg-yellow-900/40 text-yellow-300 border border-yellow-700/50"
+          }`}
+        >
+          {hintMessage}
+        </div>
+      )}
 
       {errors.length > 0 && !solved && (
         <div className="text-red-400">

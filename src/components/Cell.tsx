@@ -11,19 +11,24 @@ interface CellProps {
   isAutoExcluded: boolean;
   isError: boolean;
   isHinted: boolean;
+  hintType: "cant_be" | "must_be" | null;
   onClick: () => void;
 }
 
-export function Cell({ color, state, isAutoExcluded, isError, isHinted, onClick }: CellProps) {
+export function Cell({ color, state, isAutoExcluded, isError, isHinted, hintType, onClick }: CellProps) {
   const showExclude = state === "excluded" || (state === "empty" && isAutoExcluded);
   const showCrown = state === "crown";
+
+  const hintRingClass = isHinted
+    ? hintType === "cant_be"
+      ? "ring-2 ring-red-400 ring-inset animate-pulse"
+      : "ring-2 ring-yellow-300 ring-inset animate-pulse"
+    : "";
 
   return (
     <button
       onClick={onClick}
-      className={`aspect-square w-full flex items-center justify-center border border-gray-700/50 transition-all hover:brightness-110 active:brightness-90 ${
-        isHinted ? "ring-2 ring-yellow-300 ring-inset animate-pulse" : ""
-      }`}
+      className={`aspect-square w-full flex items-center justify-center border border-gray-700/50 transition-all hover:brightness-110 active:brightness-90 ${hintRingClass}`}
       style={{ backgroundColor: color }}
     >
       {showCrown && (

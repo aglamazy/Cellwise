@@ -18,6 +18,7 @@ interface BoardProps {
   autoExcluded: Position[];
   errors: ValidationError[];
   hintedCell: Position | null;
+  hintType: "cant_be" | "must_be" | null;
   onCellClick: (position: Position) => void;
 }
 
@@ -28,6 +29,7 @@ export function Board({
   autoExcluded,
   errors,
   hintedCell,
+  hintType,
   onCellClick,
 }: BoardProps) {
   const cells: React.ReactNode[] = [];
@@ -57,6 +59,7 @@ export function Board({
           isAutoExcluded={isAutoExcluded}
           isError={isError}
           isHinted={isHinted}
+          hintType={isHinted ? hintType : null}
           onClick={() => onCellClick(position)}
         />
       );
