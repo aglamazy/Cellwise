@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useCallback, useEffect } from "react";
 import { Puzzle, Position } from "@/types/game";
 import {
   getRegionColorAt,
@@ -22,6 +22,7 @@ interface BoardProps {
   hintedCell: Position | null;
   hintType: "error" | "cant_be" | "must_be" | null;
   onCellClick: (position: Position) => void;
+  onSwipeCells?: (positions: Position[]) => void;
 }
 
 export function Board({
@@ -34,7 +35,149 @@ export function Board({
   hintedCell,
   hintType,
   onCellClick,
+  onSwipeCells,
 }: BoardProps) {
+  const boardRef = useRef<HTMLDivElement>(null);
+  const swipedCellsRef = useRef<Position[]>([]);
+  const isSwiping = useRef(false);
+
+  // Get cell position from touch/mouse coordinates
+  const getCellFromPoint = useCallback(
+    (clientX: number, clientY: number): Position | null => {
+      const board = boardRef.current;
+      if (!board) return null;
+
+      const rect = board.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      if (x < 0 || y < 0 || x >= rect.width || y >= rect.height) return null;
+
+      const col = Math.floor((x / rect.width) * puzzle.width);
+      const row = Math.floor((y / rect.height) * puzzle.height);
+
+      if (row < 0 || row >= puzzle.height || col < 0 || col >= puzzle.width)
+        return null;
+
+      return { row, col };
+    },
+    [puzzle.width, puzzle.height]
+  );
+
+  const addSwipedCell = useCallback((pos: Position) => {
+    const already = swipedCellsRef.current.some(
+      (p) => p.row === pos.row && p.col === pos.col
+    );
+    if (!already) {
+      swipedCellsRef.current = [...swipedCellsRef.current, pos];
+    }
+  }, []);
+
+  // Touch event handlers
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const pos = getCellFromPoint(
+        e.touches[0].clientX,
+        e.touches[0].clientY
+      );
+      if (pos) {
+        isSwiping.current = true;
+        swipedCellsRef.current = [pos];
+      }
+    },
+    [getCellFromPoint]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isSwiping.current) return;
+      // Prevent pull-to-refresh and scrolling while swiping on the board
+      e.preventDefault();
+      const pos = getCellFromPoint(
+        e.touches[0].clientX,
+        e.touches[0].clientY
+      );
+      if (pos) {
+        addSwipedCell(pos);
+      }
+    },
+    [getCellFromPoint, addSwipedCell]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isSwiping.current) return;
+    isSwiping.current = false;
+
+    const swiped = swipedCellsRef.current;
+    if (swiped.length <= 1) {
+      // Single tap — let onClick handle it
+      swipedCellsRef.current = [];
+      return;
+    }
+
+    // Multi-cell swipe
+    if (onSwipeCells) {
+      onSwipeCells(swiped);
+    }
+    swipedCellsRef.current = [];
+  }, [onSwipeCells]);
+
+  // Mouse event handlers for desktop drag
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      const pos = getCellFromPoint(e.clientX, e.clientY);
+      if (pos) {
+        isSwiping.current = true;
+        swipedCellsRef.current = [pos];
+      }
+    },
+    [getCellFromPoint]
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isSwiping.current) return;
+      const pos = getCellFromPoint(e.clientX, e.clientY);
+      if (pos) {
+        addSwipedCell(pos);
+      }
+    },
+    [getCellFromPoint, addSwipedCell]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    if (!isSwiping.current) return;
+    isSwiping.current = false;
+
+    const swiped = swipedCellsRef.current;
+    if (swiped.length <= 1) {
+      swipedCellsRef.current = [];
+      return;
+    }
+
+    if (onSwipeCells) {
+      onSwipeCells(swiped);
+    }
+    swipedCellsRef.current = [];
+  }, [onSwipeCells]);
+
+  // Cancel swipe if mouse leaves the board
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (isSwiping.current) {
+        isSwiping.current = false;
+        const swiped = swipedCellsRef.current;
+        if (swiped.length > 1 && onSwipeCells) {
+          onSwipeCells(swiped);
+        }
+        swipedCellsRef.current = [];
+      }
+    };
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => window.removeEventListener("mouseup", handleGlobalMouseUp);
+  }, [onSwipeCells]);
+
   const cells: React.ReactNode[] = [];
 
   // Build a map from position key to reason for quick lookup
@@ -79,10 +222,17 @@ export function Board({
 
   return (
     <div
-      className="grid gap-0 border-2 border-gray-600 w-full max-w-md aspect-square"
+      ref={boardRef}
+      className="grid gap-0 border-2 border-gray-600 w-full aspect-square touch-none select-none"
       style={{
         gridTemplateColumns: `repeat(${puzzle.width}, 1fr)`,
       }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
     >
       {cells}
     </div>

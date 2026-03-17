@@ -146,6 +146,30 @@ export function Game({ puzzle }: GameProps) {
     [puzzle, crowns, excluded, solved, isPaused, triggerConfetti, clearHint]
   );
 
+  const handleSwipeCells = useCallback(
+    (positions: Position[]) => {
+      if (solved || isPaused) return;
+
+      clearHint();
+      setWrongExclusionMsg(null);
+
+      // Save current state to history before making changes
+      setHistory((prev) => [...prev, { crowns, excluded }]);
+
+      // Mark all swiped cells as excluded (skip cells that already have crowns or are already excluded)
+      const newExcluded = [...excluded];
+      for (const pos of positions) {
+        const hasCrown = hasCrownAt(crowns, pos);
+        const alreadyExcluded = hasPositionIn(excluded, pos);
+        if (!hasCrown && !alreadyExcluded) {
+          newExcluded.push(pos);
+        }
+      }
+      setExcluded(newExcluded);
+    },
+    [puzzle, crowns, excluded, solved, isPaused, clearHint]
+  );
+
   const handleReset = () => {
     setCrowns([]);
     setExcluded([]);
@@ -250,7 +274,7 @@ export function Game({ puzzle }: GameProps) {
 
       <Timer ref={timerRef} isPaused={isPaused} onPauseToggle={handlePauseToggle} />
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full" style={{ maxWidth: `min(100vw - 2rem, ${Math.min(puzzle.width * 60, 500)}px)` }}>
         {isPaused && (
           <div
             className="absolute inset-0 bg-gray-800 bg-opacity-95 z-10 flex items-center justify-center rounded-lg cursor-pointer"
@@ -272,6 +296,7 @@ export function Game({ puzzle }: GameProps) {
           hintedCell={hintedCell}
           hintType={hintType}
           onCellClick={handleCellClick}
+          onSwipeCells={handleSwipeCells}
         />
       </div>
 
