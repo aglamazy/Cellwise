@@ -45,7 +45,11 @@ export function PuzzleEditor({
   onCancel,
   initialPuzzle,
 }: PuzzleEditorProps) {
-  const [name, setName] = useState(initialPuzzle?.name || "");
+  const [name, setName] = useState(() => {
+    if (initialPuzzle?.name) return initialPuzzle.name;
+    const today = new Date();
+    return `Puzzle ${today.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  });
   const [size, setSize] = useState(initialPuzzle?.width || 5);
   const [sizeInput, setSizeInput] = useState(
     String(initialPuzzle?.width || 5)

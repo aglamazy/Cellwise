@@ -41,8 +41,8 @@ export const Timer = forwardRef<TimerRef, TimerProps>(function Timer(
   }, []);
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-xl font-mono min-w-[60px]">{formatTime(elapsedTime)}</span>
+    <div className="flex items-center gap-2">
+      <span className="text-lg font-mono tabular-nums text-gray-300 min-w-[60px]">{formatTime(elapsedTime)}</span>
       {!isStopped && (
         <button
           onClick={onPauseToggle}

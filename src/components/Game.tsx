@@ -13,8 +13,11 @@ import {
   hasCrownAt,
   hasPositionIn,
   getAutoExcludedPositions,
+  getAutoExcludedPositionsWithReasons,
+  generateHint,
   ValidationError,
 } from "@/lib/game";
+import { markPuzzleCompleted } from "@/lib/puzzleHistory";
 
 interface GameProps {
   puzzle: Puzzle;
@@ -47,6 +50,10 @@ export function Game({ puzzle }: GameProps) {
   const [history, setHistory] = useState<GameState[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [hintedCell, setHintedCell] = useState<Position | null>(null);
+  const [hintType, setHintType] = useState<"error" | "cant_be" | "must_be" | null>(null);
+  const [hintMessage, setHintMessage] = useState<string | null>(null);
   const timerRef = useRef<TimerRef>(null);
   const { user, isAdmin } = useAuth();
 
@@ -109,6 +116,20 @@ export function Game({ puzzle }: GameProps) {
     [user, puzzle.id]
   );
 
+  const autoExclusions = useMemo(
+    () => getAutoExcludedPositionsWithReasons(puzzle, crowns),
+    [puzzle, crowns]
+  );
+
+  const [wrongExclusionMsg, setWrongExclusionMsg] = useState<string | null>(null);
+
+  const clearHint = useCallback(() => {
+    setHintedCell(null);
+    setHintType(null);
+    setHintMessage(null);
+  }, []);
+
+
   const triggerConfetti = useCallback(() => {
     const duration = 3000;
     const animationEnd = Date.now() + duration;
@@ -147,6 +168,10 @@ export function Game({ puzzle }: GameProps) {
     (position: Position) => {
       if (solved || isPaused) return;
 
+      // Clear any active hint or wrong-exclusion warning when user acts
+      clearHint();
+      setWrongExclusionMsg(null);
+
       // Save current state to history before making changes
       setHistory((prev) => [...prev, { crowns, excluded }]);
 
@@ -174,6 +199,7 @@ export function Game({ puzzle }: GameProps) {
 
         if (isPuzzleSolved(puzzle, newCrowns)) {
           setSolved(true);
+          markPuzzleCompleted(puzzle.id);
           timerRef.current?.stop();
           triggerConfetti();
 
@@ -184,9 +210,21 @@ export function Game({ puzzle }: GameProps) {
       } else {
         // Empty -> Excluded: add to excluded
         setExcluded((prev) => [...prev, position]);
+
+        // Warn if the user excluded a cell that is actually in the solution
+        if (puzzle.solution) {
+          const isInSolution = puzzle.solution.some(
+            (s) => s.row === position.row && s.col === position.col
+          );
+          if (isInSolution) {
+            setWrongExclusionMsg(
+              "This cell actually needs a crown — your exclusion is incorrect!"
+            );
+          }
+        }
       }
     },
-    [puzzle, crowns, excluded, solved, isPaused, triggerConfetti, saveResult]
+    [puzzle, crowns, excluded, solved, isPaused, triggerConfetti, saveResult, clearHint]
   );
 
   const handleReset = () => {
@@ -196,6 +234,11 @@ export function Game({ puzzle }: GameProps) {
     setSolved(false);
     setHistory([]);
     setSaveMessage(null);
+    setHintsUsed(0);
+    setHintedCell(null);
+    setHintType(null);
+    setHintMessage(null);
+    setWrongExclusionMsg(null);
   };
 
   const handlePauseToggle = () => {
@@ -233,6 +276,8 @@ export function Game({ puzzle }: GameProps) {
   const handleUndo = useCallback(() => {
     if (history.length === 0) return;
 
+    clearHint();
+
     const previousState = history[history.length - 1];
     setHistory((prev) => prev.slice(0, -1));
     setCrowns(previousState.crowns);
@@ -240,7 +285,33 @@ export function Game({ puzzle }: GameProps) {
     const newErrors = validatePlacement(puzzle, previousState.crowns);
     setErrors(newErrors);
     setSolved(false);
-  }, [history, puzzle]);
+  }, [history, puzzle, clearHint]);
+
+  const handleHint = useCallback(() => {
+    if (solved || isPaused) return;
+
+    const hint = generateHint(puzzle, crowns, excluded);
+    if (!hint) return;
+
+    setHintsUsed((prev) => prev + 1);
+    setHintedCell(hint.position);
+    setHintType(hint.type);
+    setHintMessage(hint.reason);
+
+    if (hint.type === "cant_be") {
+      // Save current state to history
+      setHistory((prev) => [...prev, { crowns, excluded }]);
+
+      // Mark the cell as excluded if not already
+      const alreadyExcluded = excluded.some(
+        (p) => p.row === hint.position.row && p.col === hint.position.col
+      );
+      if (!alreadyExcluded) {
+        setExcluded((prev) => [...prev, hint.position]);
+      }
+    }
+    // For "error" and "must_be": just highlight the cell, let the player act
+  }, [puzzle, crowns, excluded, solved, isPaused]);
 
   useEffect(() => {
     if (shareMessage) {
@@ -252,9 +323,9 @@ export function Game({ puzzle }: GameProps) {
   const userBestTime = leaderboard.find((e) => e.userId === user?.id);
 
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-5">
       <div className="text-center">
-        <h1 className="text-2xl font-bold mb-2">{puzzle.name}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight mb-1">{puzzle.name}</h1>
         <div className="flex items-center justify-center gap-2 mb-1">
           {puzzle.creatorName && (
             <span className="text-gray-500 text-sm">by {puzzle.creatorName}</span>
@@ -262,18 +333,19 @@ export function Game({ puzzle }: GameProps) {
           {canEdit && (
             <Link
               href={`/edit/${puzzle.id}`}
-              className="text-blue-400 hover:text-blue-300 text-sm"
+              className="text-blue-400 hover:text-blue-300 text-sm transition-colors"
             >
               Edit
             </Link>
           )}
         </div>
-        <p className="text-gray-400">
+        <p className="text-gray-400 text-sm">
           Place {puzzle.regions.length} crowns. One per row, column, and color.
+          <br />
+          Crowns cannot touch each other.
         </p>
-        <p className="text-gray-400">Crowns cannot touch each other.</p>
         {userBestTime && !solved && (
-          <p className="text-blue-400 text-sm mt-2">
+          <p className="text-blue-400 text-sm mt-1.5">
             Your best: {formatTime(userBestTime.timeSeconds)}
           </p>
         )}
@@ -285,7 +357,7 @@ export function Game({ puzzle }: GameProps) {
         onPauseToggle={handlePauseToggle}
       />
 
-      <div className="relative">
+      <div className="relative w-full max-w-md">
         {isPaused && (
           <div
             className="absolute inset-0 bg-gray-800 bg-opacity-95 z-10 flex items-center justify-center rounded-lg cursor-pointer"
@@ -302,38 +374,56 @@ export function Game({ puzzle }: GameProps) {
           crowns={crowns}
           excluded={excluded}
           autoExcluded={autoExcluded}
+          autoExclusions={autoExclusions}
           errors={errors}
+          hintedCell={hintedCell}
+          hintType={hintType}
           onCellClick={handleCellClick}
         />
       </div>
 
-      <div className="flex gap-4 items-center flex-wrap justify-center">
-        <span className="text-lg">
-          Crowns: {crowns.length} / {puzzle.regions.length}
+      <div className="flex gap-3 items-center flex-wrap justify-center">
+        <span className="text-sm font-medium text-gray-300 tabular-nums">
+          {crowns.length} / {puzzle.regions.length}
         </span>
         <button
           onClick={handleUndo}
           disabled={history.length === 0}
-          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 text-sm bg-gray-700/80 hover:bg-gray-600 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Undo
         </button>
         <button
+          onClick={handleHint}
+          disabled={solved || crowns.length >= puzzle.regions.length}
+          className="px-3 py-1.5 text-sm bg-amber-600/90 hover:bg-amber-500 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="w-3.5 h-3.5"
+          >
+            <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7zM9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9v1z" />
+          </svg>
+          Hint{hintsUsed > 0 ? ` (${hintsUsed})` : ""}
+        </button>
+        <button
           onClick={handleReset}
-          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+          className="px-3 py-1.5 text-sm bg-gray-700/80 hover:bg-gray-600 rounded-md transition-all"
         >
           Reset
         </button>
         <div className="relative">
           <button
             onClick={handleShare}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded transition-colors flex items-center gap-2"
+            className="px-3 py-1.5 text-sm bg-blue-600/90 hover:bg-blue-500 rounded-md transition-all flex items-center gap-1.5"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="w-4 h-4"
+              className="w-3.5 h-3.5"
             >
               <path
                 fillRule="evenodd"
@@ -344,51 +434,89 @@ export function Game({ puzzle }: GameProps) {
             Share
           </button>
           {shareMessage && (
-            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-700 px-2 py-1 rounded text-sm whitespace-nowrap">
+            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-700 px-2 py-1 rounded text-xs whitespace-nowrap">
               {shareMessage}
             </span>
           )}
         </div>
       </div>
 
+      {hintMessage && (
+        <div
+          className={`text-sm px-4 py-2.5 rounded-lg max-w-md text-center transition-all flex items-center gap-2 ${
+            hintType === "error"
+              ? "bg-orange-950/50 text-orange-200 border border-orange-800/40"
+              : hintType === "cant_be"
+                ? "bg-red-950/50 text-red-200 border border-red-800/40"
+                : "bg-amber-950/50 text-amber-200 border border-amber-800/40"
+          }`}
+        >
+          <span className="flex-1 leading-snug">{hintMessage}</span>
+          <button
+            onClick={clearHint}
+            className="ml-2 opacity-50 hover:opacity-100 transition-opacity shrink-0"
+            aria-label="Dismiss hint"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {wrongExclusionMsg && (
+        <div className="text-sm px-4 py-2.5 rounded-lg max-w-md text-center transition-all flex items-center gap-2 bg-orange-950/50 text-orange-200 border border-orange-800/40">
+          <span className="flex-1 leading-snug">{wrongExclusionMsg}</span>
+          <button
+            onClick={() => setWrongExclusionMsg(null)}
+            className="ml-2 opacity-50 hover:opacity-100 transition-opacity shrink-0"
+            aria-label="Dismiss warning"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {errors.length > 0 && !solved && (
-        <div className="text-red-400">
+        <div className="text-red-400 text-sm font-medium">
           {errors.length} conflict{errors.length > 1 ? "s" : ""} detected
         </div>
       )}
 
       {solved && (
         <div className="text-center">
-          <div className="text-green-400 text-2xl font-bold animate-pulse mb-2">
-            Solved!
+          <div className="text-emerald-400 text-xl font-semibold mb-1">
+            Puzzle Complete!
           </div>
-          {saveMessage && <p className="text-blue-400">{saveMessage}</p>}
+          {saveMessage && <p className="text-blue-400 text-sm">{saveMessage}</p>}
           {!user && (
-            <p className="text-gray-400 text-sm mt-2">
-              Log in to save your times!
+            <p className="text-gray-500 text-sm mt-1">
+              Log in to save your times
             </p>
           )}
         </div>
       )}
 
       {leaderboard.length > 0 && (
-        <div className="mt-4 w-full max-w-sm">
-          <h3 className="text-lg font-semibold mb-2 text-center">
+        <div className="mt-2 w-full max-w-sm">
+          <h3 className="text-sm font-medium text-gray-400 mb-2 text-center uppercase tracking-wide">
             Leaderboard
           </h3>
-          <div className="bg-gray-800 rounded-lg overflow-hidden">
+          <div className="bg-gray-800/60 rounded-lg overflow-hidden border border-gray-700/40">
             {leaderboard.slice(0, 5).map((entry, index) => (
               <div
                 key={entry.userId}
-                className={`flex justify-between px-4 py-2 ${
-                  index % 2 === 0 ? "bg-gray-800" : "bg-gray-750"
-                } ${entry.userId === user?.id ? "text-blue-400" : ""}`}
+                className={`flex justify-between px-4 py-2 text-sm ${
+                  index % 2 === 0 ? "bg-transparent" : "bg-gray-800/40"
+                } ${entry.userId === user?.id ? "text-blue-400" : "text-gray-300"}`}
               >
                 <span>
                   {index + 1}. {entry.userName}
                   {entry.userId === user?.id && " (you)"}
                 </span>
-                <span>{formatTime(entry.timeSeconds)}</span>
+                <span className="font-mono tabular-nums">{formatTime(entry.timeSeconds)}</span>
               </div>
             ))}
           </div>

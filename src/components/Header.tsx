@@ -12,8 +12,8 @@ export function Header({ title }: HeaderProps) {
 
   return (
     <header className="flex justify-between items-center mb-6 p-4 sm:p-0">
-      <Link href="/" className="text-2xl sm:text-3xl font-bold hover:opacity-80">
-        {title || "Cellwise"}
+      <Link href="/" className="text-2xl sm:text-3xl font-semibold tracking-tight hover:opacity-80 transition-opacity">
+        {title || "CellWise"}
       </Link>
 
       <div className="flex items-center gap-4">

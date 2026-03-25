@@ -27,7 +27,7 @@ export default function CreatePuzzlePage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white">
+    <main className="min-h-screen text-white">
       <PuzzleEditor onSave={handleSave} onCancel={handleCancel} />
     </main>
   );

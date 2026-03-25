@@ -30,7 +30,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen text-white">
       <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto">

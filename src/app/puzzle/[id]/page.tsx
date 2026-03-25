@@ -16,11 +16,11 @@ export default async function PuzzlePage({ params }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
+    <main className="min-h-screen text-white p-4 sm:p-8">
       <div className="max-w-lg mx-auto">
         <Link
           href="/"
-          className="inline-block mb-4 text-gray-400 hover:text-white transition-colors"
+          className="inline-block mb-4 text-sm text-gray-500 hover:text-gray-300 transition-colors"
         >
           &larr; Back to puzzles
         </Link>
