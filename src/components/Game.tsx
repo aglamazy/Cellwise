@@ -39,6 +39,9 @@ export function Game({ puzzle }: GameProps) {
   const [hintType, setHintType] = useState<"error" | "cant_be" | "must_be" | null>(null);
   const [hintMessage, setHintMessage] = useState<string | null>(null);
   const timerRef = useRef<TimerRef>(null);
+  const [hintCooldownRemaining, setHintCooldownRemaining] = useState(0);
+  const cooldownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hintActiveRef = useRef(false);
 
   const autoExcluded = useMemo(
     () => getAutoExcludedPositions(puzzle, crowns),
@@ -50,12 +53,36 @@ export function Game({ puzzle }: GameProps) {
     [puzzle, crowns]
   );
 
-  const [wrongExclusionMsg, setWrongExclusionMsg] = useState<string | null>(null);
+  const startCooldown = useCallback(() => {
+    setHintCooldownRemaining(10);
+    if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+    cooldownIntervalRef.current = setInterval(() => {
+      setHintCooldownRemaining((prev) => {
+        if (prev <= 1) {
+          if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+          cooldownIntervalRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
 
   const clearHint = useCallback(() => {
     setHintedCell(null);
     setHintType(null);
     setHintMessage(null);
+    if (hintActiveRef.current) {
+      hintActiveRef.current = false;
+      startCooldown();
+    }
+  }, [startCooldown]);
+
+  // Cleanup cooldown timer on unmount
+  useEffect(() => {
+    return () => {
+      if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+    };
   }, []);
 
   const triggerConfetti = useCallback(() => {
@@ -91,9 +118,8 @@ export function Game({ puzzle }: GameProps) {
     (position: Position) => {
       if (solved || isPaused) return;
 
-      // Clear any active hint or wrong-exclusion warning when user acts
+      // Clear any active hint when user acts
       clearHint();
-      setWrongExclusionMsg(null);
 
       // Save current state to history before making changes
       setHistory((prev) => [...prev, { crowns, excluded }]);
@@ -130,17 +156,6 @@ export function Game({ puzzle }: GameProps) {
         // Empty -> Excluded: add to excluded
         setExcluded((prev) => [...prev, position]);
 
-        // Warn if the user excluded a cell that is actually in the solution
-        if (puzzle.solution) {
-          const isInSolution = puzzle.solution.some(
-            (s) => s.row === position.row && s.col === position.col
-          );
-          if (isInSolution) {
-            setWrongExclusionMsg(
-              "This cell actually needs a crown — your exclusion is incorrect!"
-            );
-          }
-        }
       }
     },
     [puzzle, crowns, excluded, solved, isPaused, triggerConfetti, clearHint]
@@ -180,7 +195,10 @@ export function Game({ puzzle }: GameProps) {
     setHintedCell(null);
     setHintType(null);
     setHintMessage(null);
-    setWrongExclusionMsg(null);
+    hintActiveRef.current = false;
+    setHintCooldownRemaining(0);
+    if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+    cooldownIntervalRef.current = null;
   };
 
   const handlePauseToggle = () => {
@@ -230,15 +248,17 @@ export function Game({ puzzle }: GameProps) {
   }, [history, puzzle, clearHint]);
 
   const handleHint = useCallback(() => {
-    if (solved || isPaused) return;
+    if (solved || isPaused || hintCooldownRemaining > 0) return;
 
     const hint = generateHint(puzzle, crowns, excluded);
-    if (!hint) return;
+    // Skip error-type hints — the user should reason about errors themselves
+    if (!hint || hint.type === "error") return;
 
     setHintsUsed((prev) => prev + 1);
     setHintedCell(hint.position);
     setHintType(hint.type);
     setHintMessage(hint.reason);
+    hintActiveRef.current = true;
 
     if (hint.type === "cant_be") {
       // Save current state to history
@@ -252,8 +272,8 @@ export function Game({ puzzle }: GameProps) {
         setExcluded((prev) => [...prev, hint.position]);
       }
     }
-    // For "error" and "must_be": just highlight the cell, let the player act
-  }, [puzzle, crowns, excluded, solved, isPaused]);
+    // For "must_be": just highlight the cell, let the player act
+  }, [puzzle, crowns, excluded, solved, isPaused, hintCooldownRemaining]);
 
   useEffect(() => {
     if (shareMessage) {
@@ -292,7 +312,7 @@ export function Game({ puzzle }: GameProps) {
           excluded={excluded}
           autoExcluded={autoExcluded}
           autoExclusions={autoExclusions}
-          errors={errors}
+          errors={[]}
           hintedCell={hintedCell}
           hintType={hintType}
           onCellClick={handleCellClick}
@@ -313,7 +333,7 @@ export function Game({ puzzle }: GameProps) {
         </button>
         <button
           onClick={handleHint}
-          disabled={solved || crowns.length >= puzzle.regions.length}
+          disabled={solved || crowns.length >= puzzle.regions.length || hintCooldownRemaining > 0}
           className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           <svg
@@ -324,7 +344,7 @@ export function Game({ puzzle }: GameProps) {
           >
             <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7zM9 21a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-1H9v1z" />
           </svg>
-          Hint{hintsUsed > 0 ? ` (${hintsUsed})` : ""}
+          Hint{hintCooldownRemaining > 0 ? ` (${hintCooldownRemaining}s)` : hintsUsed > 0 ? ` (${hintsUsed})` : ""}
         </button>
         <button
           onClick={handleReset}
@@ -362,11 +382,9 @@ export function Game({ puzzle }: GameProps) {
       {hintMessage && (
         <div
           className={`text-sm px-4 py-2 rounded max-w-md text-center transition-opacity flex items-center gap-2 ${
-            hintType === "error"
-              ? "bg-orange-900/40 text-orange-300 border border-orange-700/50"
-              : hintType === "cant_be"
-                ? "bg-red-900/40 text-red-300 border border-red-700/50"
-                : "bg-yellow-900/40 text-yellow-300 border border-yellow-700/50"
+            hintType === "cant_be"
+              ? "bg-red-900/40 text-red-300 border border-red-700/50"
+              : "bg-yellow-900/40 text-yellow-300 border border-yellow-700/50"
           }`}
         >
           <span className="flex-1">{hintMessage}</span>
@@ -379,27 +397,6 @@ export function Game({ puzzle }: GameProps) {
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
           </button>
-        </div>
-      )}
-
-      {wrongExclusionMsg && (
-        <div className="text-sm px-4 py-2 rounded max-w-md text-center transition-opacity flex items-center gap-2 bg-orange-900/40 text-orange-300 border border-orange-700/50">
-          <span className="flex-1">{wrongExclusionMsg}</span>
-          <button
-            onClick={() => setWrongExclusionMsg(null)}
-            className="ml-2 opacity-60 hover:opacity-100 transition-opacity"
-            aria-label="Dismiss warning"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {errors.length > 0 && !solved && (
-        <div className="text-red-400">
-          {errors.length} conflict{errors.length > 1 ? "s" : ""} detected
         </div>
       )}
 
