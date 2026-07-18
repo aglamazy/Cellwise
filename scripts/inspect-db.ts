@@ -44,6 +44,20 @@ async function main() {
       show("schema", rows as Record<string, unknown>[]);
       break;
     }
+    case "auth": {
+      // Which password-hash scheme each account is on — "pbkdf2" is current,
+      // anything else is a legacy unsalted SHA-256 awaiting upgrade at login.
+      const rows = await sql`
+        SELECT email,
+               CASE WHEN password_hash LIKE 'pbkdf2$%' THEN 'pbkdf2'
+                    ELSE 'legacy-sha256' END AS scheme,
+               length(password_hash) AS hash_len,
+               created_at
+        FROM users ORDER BY created_at DESC LIMIT ${limit}
+      `;
+      show("auth", rows as Record<string, unknown>[]);
+      break;
+    }
     case "users": {
       const rows = await sql`
         SELECT id, name, email, role, created_at

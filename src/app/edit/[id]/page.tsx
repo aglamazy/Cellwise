@@ -75,7 +75,7 @@ export default function EditPuzzlePage() {
 
   if (loading || authLoading) {
     return (
-      <main className="min-h-screen text-white flex items-center justify-center">
+      <main className="flex items-center justify-center py-20">
         <p className="text-gray-400">Loading...</p>
       </main>
     );
@@ -83,7 +83,7 @@ export default function EditPuzzlePage() {
 
   if (error) {
     return (
-      <main className="min-h-screen text-white flex flex-col items-center justify-center gap-4">
+      <main className="flex flex-col items-center justify-center gap-4 py-20">
         <p className="text-red-400">{error}</p>
         <button
           onClick={() => router.push("/")}
@@ -97,14 +97,14 @@ export default function EditPuzzlePage() {
 
   if (!puzzle) {
     return (
-      <main className="min-h-screen text-white flex items-center justify-center">
+      <main className="flex items-center justify-center py-20">
         <p className="text-gray-400">Puzzle not found</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen text-white">
+    <main className="pb-8">
       <PuzzleEditor
         onSave={handleSave}
         onCancel={handleCancel}

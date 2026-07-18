@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Header } from "@/components/Header";
 import { useAuth } from "@/contexts/AuthContext";
 import { Puzzle } from "@/types/game";
 
@@ -60,9 +59,9 @@ export default function MyPuzzlesPage() {
 
   if (isLoading || loading) {
     return (
-      <div className="min-h-screen text-white p-4 sm:p-8">
+      <div className="px-4 pb-8 sm:px-8">
         <div className="max-w-2xl mx-auto">
-          <Header title="My Puzzles" />
+          <h1 className="text-2xl font-semibold mb-6">My Puzzles</h1>
           <p className="text-gray-400">Loading...</p>
         </div>
       </div>
@@ -74,9 +73,9 @@ export default function MyPuzzlesPage() {
   }
 
   return (
-    <div className="min-h-screen text-white p-4 sm:p-8">
+    <div className="px-4 pb-8 sm:px-8">
       <div className="max-w-2xl mx-auto">
-        <Header title="My Puzzles" />
+        <h1 className="text-2xl font-semibold mb-6">My Puzzles</h1>
 
         <div className="mb-6">
           <Link

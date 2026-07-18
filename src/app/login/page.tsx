@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { Header } from "@/components/Header";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -30,8 +29,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen text-white">
-      <Header />
+    <div>
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-md mx-auto">
           <h1 className="text-3xl font-bold text-center mb-8">Login</h1>

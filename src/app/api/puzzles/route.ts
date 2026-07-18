@@ -1,6 +1,19 @@
 import { sql } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { User } from "@/types/user";
 import { NextRequest, NextResponse } from "next/server";
+
+// Who may edit or delete an existing puzzle.
+//
+// The previous check read `if (ownerId && user?.id !== ownerId && ...)`, which
+// short-circuits to "allowed" whenever ownerId is null — and every puzzle
+// created before accounts existed has a null owner. That let anyone, logged out,
+// delete or overwrite them. Ownerless puzzles are now admin-only.
+function canModify(user: User | null, ownerId: string | null): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  return ownerId !== null && ownerId === user.id;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,11 +70,7 @@ export async function POST(request: NextRequest) {
     if (existingById.length > 0) {
       // This is an update - check if user owns this puzzle or is admin
       const puzzleOwnerId = existingById[0].user_id;
-      if (
-        puzzleOwnerId &&
-        user?.id !== puzzleOwnerId &&
-        user?.role !== "admin"
-      ) {
+      if (!canModify(user, puzzleOwnerId as string | null)) {
         return NextResponse.json(
           { error: "You can only edit your own puzzles" },
           { status: 403 }
@@ -157,7 +166,7 @@ export async function DELETE(request: NextRequest) {
     const puzzleOwnerId = existing[0].user_id;
 
     // Allow delete only if user owns the puzzle or is admin
-    if (puzzleOwnerId && user?.id !== puzzleOwnerId && user?.role !== "admin") {
+    if (!canModify(user, puzzleOwnerId as string | null)) {
       return NextResponse.json(
         { error: "You can only delete your own puzzles" },
         { status: 403 }

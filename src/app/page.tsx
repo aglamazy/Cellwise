@@ -1,7 +1,7 @@
 import { getPuzzles } from "@/lib/puzzles";
 import Link from "next/link";
 import { PuzzleList } from "@/components/PuzzleList";
-import { Header } from "@/components/Header";
+import { PlayButton } from "@/components/PlayButton";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +9,8 @@ export default async function Home() {
   const puzzles = await getPuzzles();
 
   return (
-    <main className="min-h-screen text-white p-4 sm:p-8">
+    <main className="px-4 pb-8 sm:px-8">
       <div className="max-w-lg mx-auto">
-        <Header title="CellWise" />
-
         <div className="text-center mb-8">
           <p className="text-gray-400 text-lg mb-1">
             A logic puzzle — place one crown per row, column, and color.
@@ -20,14 +18,7 @@ export default async function Home() {
           <p className="text-gray-500 text-sm mb-5">
             No guessing needed. Every puzzle is solvable by deduction alone.
           </p>
-          {puzzles.length > 0 && (
-            <Link
-              href={`/puzzle/${puzzles[0].id}`}
-              className="inline-block px-6 py-3 bg-amber-600 hover:bg-amber-500 rounded-lg font-medium transition-all text-base"
-            >
-              Play
-            </Link>
-          )}
+          <PlayButton puzzles={puzzles} />
         </div>
 
         <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
