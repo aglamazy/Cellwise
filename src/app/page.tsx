@@ -13,6 +13,27 @@ export default async function Home() {
       <div className="max-w-lg mx-auto">
         <Header title="CellWise" />
 
+        <div className="text-center mb-8">
+          <p className="text-gray-400 text-lg mb-1">
+            A logic puzzle — place one crown per row, column, and color.
+          </p>
+          <p className="text-gray-500 text-sm mb-5">
+            No guessing needed. Every puzzle is solvable by deduction alone.
+          </p>
+          {puzzles.length > 0 && (
+            <Link
+              href={`/puzzle/${puzzles[0].id}`}
+              className="inline-block px-6 py-3 bg-amber-600 hover:bg-amber-500 rounded-lg font-medium transition-all text-base"
+            >
+              Play
+            </Link>
+          )}
+        </div>
+
+        <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+          All Puzzles
+        </h2>
+
         <PuzzleList initialPuzzles={puzzles} />
 
         <Link

@@ -675,20 +675,20 @@ export function generateHint(puzzle: Puzzle, crowns: Position[], excluded: Posit
           return {
             type: "cant_be",
             position: candidate,
-            reason: `Row ${candidate.row + 1} needs its crown elsewhere (try column ${solutionCrownInRow.col + 1})`,
+            reason: `This isn't the right spot for row ${candidate.row + 1}'s crown — try narrowing down by checking other constraints`,
           };
         } else if (solutionCrownInRegion) {
           const cName = regionColor(candidateRegion);
           return {
             type: "cant_be",
             position: candidate,
-            reason: `The ${cName} region's crown belongs elsewhere in the region`,
+            reason: `The ${cName} region's crown goes elsewhere — look at which cells aren't blocked`,
           };
         } else {
           return {
             type: "cant_be",
             position: candidate,
-            reason: `This cell can be eliminated -- try focusing on rows or regions with fewer options`,
+            reason: `This cell can be eliminated — try focusing on rows or regions with fewer options`,
           };
         }
       }

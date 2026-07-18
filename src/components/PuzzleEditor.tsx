@@ -130,16 +130,62 @@ export function PuzzleEditor({
           return newColors;
         });
       } else {
-        setSolution((prev) => {
-          const exists = prev.find((p) => p.row === row && p.col === col);
-          if (exists) {
-            return prev.filter((p) => p.row !== row || p.col !== col);
+        const exists = solution.some((p) => p.row === row && p.col === col);
+
+        if (exists) {
+          // Releasing a crown releases the region it seeded — a region without
+          // its crown can never be valid, so leaving the colour behind would
+          // just hand the user an error to clean up later.
+          const releasedColor = cellColors[row]?.[col];
+          setSolution((prev) =>
+            prev.filter((p) => p.row !== row || p.col !== col)
+          );
+          if (releasedColor !== null && releasedColor !== undefined) {
+            setCellColors((prev) =>
+              prev.map((r) => r.map((c) => (c === releasedColor ? null : c)))
+            );
           }
-          return [...prev, { row, col }];
+          setError("");
+          return;
+        }
+
+        // Every new crown claims its own region colour straight away, so the
+        // board shows regions taking shape instead of identical grey cells.
+        // The free colour is picked from the updater's own `prev` so two
+        // clicks in one render tick can't be handed the same colour.
+        let exhausted = false;
+        setCellColors((prev) => {
+          const used = new Set<number>();
+          for (const r of prev) {
+            for (const c of r) {
+              if (c !== null && c !== undefined) used.add(c);
+            }
+          }
+          let colorIdx = 0;
+          while (used.has(colorIdx)) colorIdx++;
+          if (colorIdx >= COLORS.length) {
+            exhausted = true;
+            return prev;
+          }
+          const newColors = prev.map((r) => [...r]);
+          newColors[row][col] = colorIdx;
+          return newColors;
         });
+
+        if (exhausted) {
+          setError(`Only ${COLORS.length} regions are available`);
+          return;
+        }
+
+        setSolution((prev) =>
+          prev.some((p) => p.row === row && p.col === col)
+            ? prev
+            : [...prev, { row, col }]
+        );
+        setError("");
       }
     },
-    [mode, selectedColor]
+    [mode, selectedColor, cellColors, solution]
   );
 
   const getRegions = (): Region[] => {
@@ -175,43 +221,46 @@ export function PuzzleEditor({
       return;
     }
 
-    // Step 1: Place crowns in empty rows/columns (preserve existing)
-    const newSolution = [...solution];
-    const usedRows = new Set(newSolution.map((c) => c.row));
-    const usedCols = new Set(newSolution.map((c) => c.col));
-
-    // Find rows and columns that need crowns
-    const emptyRows: number[] = [];
-    const emptyCols: number[] = [];
-    for (let r = 0; r < size; r++) {
-      if (!usedRows.has(r)) emptyRows.push(r);
-    }
-    for (let c = 0; c < size; c++) {
-      if (!usedCols.has(c)) emptyCols.push(c);
-    }
-
-    // Try to place crowns in empty rows/columns
-    const isValidPlacement = (row: number, col: number, crowns: Position[]): boolean => {
-      for (const crown of crowns) {
-        if (crown.row === row || crown.col === col) return false;
-        // Check adjacency (9-neighborhood)
-        if (Math.abs(crown.row - row) <= 1 && Math.abs(crown.col - col) <= 1) return false;
-      }
-      return true;
+    // Step 1: Complete the crown placement, keeping every crown the user set.
+    // A greedy pass gives up the moment one row has no free column, which left
+    // the board short of crowns and impossible to save. Backtracking either
+    // finds a full placement or proves none exists.
+    const compatible = (a: Position, b: Position): boolean => {
+      if (a.row === b.row || a.col === b.col) return false;
+      // Crowns may not touch, including diagonally
+      return !(Math.abs(a.row - b.row) <= 1 && Math.abs(a.col - b.col) <= 1);
     };
 
-    // Greedy placement: for each empty row, find a valid column
-    for (const row of emptyRows) {
-      for (const col of emptyCols) {
-        if (isValidPlacement(row, col, newSolution)) {
-          newSolution.push({ row, col });
-          usedRows.add(row);
-          usedCols.add(col);
-          emptyCols.splice(emptyCols.indexOf(col), 1);
-          break;
+    const fixedByRow = new Map<number, Position>();
+    solution.forEach((crown) => fixedByRow.set(crown.row, crown));
+
+    const placed: Position[] = [];
+    const search = (row: number): boolean => {
+      if (row === size) return true;
+
+      const fixed = fixedByRow.get(row);
+      const candidates: Position[] = fixed
+        ? [fixed]
+        : Array.from({ length: size }, (_, col) => ({ row, col }));
+
+      for (const candidate of candidates) {
+        if (placed.every((p) => compatible(p, candidate))) {
+          placed.push(candidate);
+          if (search(row + 1)) return true;
+          placed.pop();
         }
       }
+      return false;
+    };
+
+    if (!search(0)) {
+      setError(
+        "These crowns can't be completed into a full puzzle — move one and try again."
+      );
+      return;
     }
+
+    const newSolution = [...placed];
 
     // Step 2: Flood fill only uncolored cells (preserve existing colors)
     const newCellColors = cellColors.map((row) => [...row]);
@@ -271,6 +320,26 @@ export function PuzzleEditor({
         }
 
         queues[i] = nextQueue;
+      }
+    }
+
+    // Cells walled off from every crown by pre-painted regions are never
+    // reached above. Attach each to a neighbouring region so the board is
+    // always fully coloured — an uncoloured cell blocks saving.
+    let attached = true;
+    while (attached) {
+      attached = false;
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (newCellColors[r][c] !== null) continue;
+          const neighbour = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+            .map(([dr, dc]) => newCellColors[r + dr]?.[c + dc])
+            .find((v) => v !== null && v !== undefined);
+          if (neighbour !== undefined) {
+            newCellColors[r][c] = neighbour;
+            attached = true;
+          }
+        }
       }
     }
 
@@ -452,7 +521,12 @@ export function PuzzleEditor({
         const rowDiff = Math.abs(a.row - b.row);
         const colDiff = Math.abs(a.col - b.col);
         const adjacent = rowDiff <= 1 && colDiff <= 1;
-        const sameRegion = cellColors[a.row]?.[a.col] === cellColors[b.row]?.[b.col];
+        const regionA = cellColors[a.row]?.[a.col];
+        const regionB = cellColors[b.row]?.[b.col];
+        // Two unpainted cells are both null, which is not "the same region" —
+        // comparing them directly flagged every crown on an unpainted board.
+        const sameRegion =
+          regionA !== null && regionA !== undefined && regionA === regionB;
 
         if (sameRow || sameCol || adjacent || sameRegion) {
           conflicts.add(`${a.row}-${a.col}`);
@@ -507,7 +581,8 @@ export function PuzzleEditor({
       </div>
 
       <p className="text-gray-400 text-sm max-w-xs text-center">
-        Tip: Place crowns first, then paint regions around them.
+        Tip: Place one crown per row — each claims its own colour. Then hit
+        Auto-Complete to grow the regions around them.
       </p>
 
       <div className="flex gap-4 mb-2">
