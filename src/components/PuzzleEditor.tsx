@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import { Position, Region, Puzzle } from "@/types/game";
 import { Crown } from "./Crown";
 import { calculatePuzzleNumber, findAllSolutions, analyzeSolutions, SolutionAnalysis } from "@/lib/game";
+import { completeRegions } from "@/lib/puzzleUnique";
 
 const COLORS = [
   "#ef4444", // red
@@ -290,63 +291,42 @@ export function PuzzleEditor({
       }
     });
 
-    // BFS flood fill from all crowns simultaneously, only filling uncolored cells
-    const queues: Position[][] = newSolution.map((crown) => [crown]);
-
-    let changed = true;
-    while (changed) {
-      changed = false;
-
-      for (let i = 0; i < newSolution.length; i++) {
-        const crown = newSolution[i];
-        const colorIdx = crownToColor.get(`${crown.row}-${crown.col}`)!;
-        const queue = queues[i];
-        const nextQueue: Position[] = [];
-
-        for (const pos of queue) {
-          // Expand to orthogonal neighbors, only filling uncolored cells
-          const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-          for (const [dr, dc] of dirs) {
-            const nr = pos.row + dr;
-            const nc = pos.col + dc;
-            if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
-              if (newCellColors[nr][nc] === null) {
-                newCellColors[nr][nc] = colorIdx;
-                nextQueue.push({ row: nr, col: nc });
-                changed = true;
-              }
-            }
-          }
-        }
-
-        queues[i] = nextQueue;
-      }
-    }
-
-    // Cells walled off from every crown by pre-painted regions are never
-    // reached above. Attach each to a neighbouring region so the board is
-    // always fully coloured — an uncoloured cell blocks saving.
-    let attached = true;
-    while (attached) {
-      attached = false;
-      for (let r = 0; r < size; r++) {
-        for (let c = 0; c < size; c++) {
-          if (newCellColors[r][c] !== null) continue;
-          const neighbour = [[-1, 0], [1, 0], [0, -1], [0, 1]]
-            .map(([dr, dc]) => newCellColors[r + dr]?.[c + dc])
-            .find((v) => v !== null && v !== undefined);
-          if (neighbour !== undefined) {
-            newCellColors[r][c] = neighbour;
-            attached = true;
-          }
+    // Step 3: Fill the remaining cells so the puzzle has exactly ONE solution.
+    //
+    // A plain flood fill grows fat, blobby regions, and a region that spans four
+    // whole rows barely constrains anything — that is why Auto-Complete used to
+    // produce boards with dozens or hundreds of solutions. A puzzle with more
+    // than one solution can't be solved by deduction, which is precisely what
+    // the game promises.
+    const authored = new Set<string>();
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (cellColors[r][c] !== null && cellColors[r][c] !== undefined) {
+          authored.add(`${r}-${c}`);
         }
       }
     }
+
+    const completed = completeRegions(
+      size,
+      newCellColors,
+      newSolution,
+      authored
+    );
 
     setSolution(newSolution);
-    setCellColors(newCellColors);
+    setCellColors(completed.cellColors);
     setMode("paint");
-    setError("");
+
+    if (completed.unique) {
+      setError("");
+    } else {
+      // Honest about the shortfall rather than quietly shipping a guessable
+      // puzzle. The solution count below the board shows the same number.
+      setError(
+        `Couldn't reach a single solution — this board still has ${completed.solutions}. Try moving a crown, or edit the regions by hand.`
+      );
+    }
   };
 
   const validatePuzzle = (): string | null => {
